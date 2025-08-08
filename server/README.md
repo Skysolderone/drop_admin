@@ -228,3 +228,36 @@ API 返回统一的成功格式：
 ## 许可证
 
 MIT License
+
+
+
+## 接口实现的步骤
+1.在services 实现基本的数据库操作
+  userDao.js
+
+2.编写接口的实现
+  authController.js （接受请求参数，调用数据库的查询）
+
+3.去路由（模块）进行注册
+  auth.js //router.post('/login', loginValidation, login);  
+
+  约定了接口的path /login
+  约定了要做校验 loginValidation
+  约定了接口实现的逻辑 login
+
+4.保证模块被app接口服务使用
+  app.use('/api/auth', authRoutes);
+
+5.启动服务
+  cd server
+  node server.js
+
+6.测试接口
+  http://localhost:3001/api/auth/login
+
+  http://localhost:3001/ 服务IP和端口
+
+  api/auth 模块或者路由
+
+  /login 模块或者路由注册的接口具体实现
+

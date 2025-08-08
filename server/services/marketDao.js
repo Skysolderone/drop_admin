@@ -30,6 +30,19 @@ const MarketDao = {
             console.error('MarketDao.list 错误:', error);
             throw error;
         }
+    },
+
+    count: async () => {
+        try {
+            const sql = 'SELECT COUNT(*) as total FROM t_wallet_tokens';
+            console.log('执行计数 SQL:', sql);
+            
+            const result = await query(sql);
+            return result[0]?.total || 0;
+        } catch (error) {
+            console.error('MarketDao.count 错误:', error);
+            throw error;
+        }
     }
 };
 export default MarketDao;

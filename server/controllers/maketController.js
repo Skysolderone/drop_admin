@@ -19,12 +19,17 @@ export const getAllTokens = async (req, res) => {
 
     console.log(`Controller: page=${page}, limit=${limit}, pageIndex=${pageIndex}, pageSize=${pageSize}`);
 
-    const data_list = await MarketDao.list(pageIndex, pageSize);
+    // 并行获取数据和总数
+    const [data_list, totalCount] = await Promise.all([
+      MarketDao.list(pageIndex, pageSize),
+      MarketDao.count()
+    ]);
+    
     return application.create_response(res, {
         tokens: data_list,
         page: parseInt(page),
         limit: pageSize,
-        total: data_list.length
+        total: totalCount
       });
   } catch (error) {
     console.error('获取代币列表错误:', error);

@@ -1,11 +1,12 @@
-import React from 'react';
-import { Button, Dropdown, Space } from 'antd';
+import React, { useState } from 'react';
+import { Button, Space } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import type { MenuProps } from 'antd';
+import ChangePasswordModal from './ChangePasswordModal';
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+  const [isChangePasswordModalVisible, setIsChangePasswordModalVisible] = useState(false);
 
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
@@ -13,17 +14,19 @@ const Header: React.FC = () => {
     navigate('/login');
   };
 
-  const userMenuItems: MenuProps['items'] = [
-    {
-      key: 'change-password',
-      label: 'Change Password',
-    },
-    {
-      key: 'logout',
-      label: 'Log out',
-      onClick: handleLogout,
-    },
-  ];
+  const showChangePasswordModal = () => {
+    setIsChangePasswordModalVisible(true);
+  };
+
+  const handleChangePasswordCancel = () => {
+    setIsChangePasswordModalVisible(false);
+  };
+
+  const handleChangePasswordConfirm = (values: any) => {
+    console.log('Change password values:', values);
+    // TODO: 这里后续添加修改密码的API调用
+    setIsChangePasswordModalVisible(false);
+  };
 
   return (
     <div className="header-container">
@@ -37,7 +40,7 @@ const Header: React.FC = () => {
       <div className="header-right">
         <span className="welcome-text">Welcome, {userInfo.username || 'xxx'}</span>
         <Space>
-          <Button type="default" size="small">
+          <Button type="default" size="small" onClick={showChangePasswordModal}>
             Change Password
           </Button>
           <Button type="default" size="small" onClick={handleLogout}>
@@ -45,6 +48,12 @@ const Header: React.FC = () => {
           </Button>
         </Space>
       </div>
+
+      <ChangePasswordModal
+        visible={isChangePasswordModalVisible}
+        onCancel={handleChangePasswordCancel}
+        onConfirm={handleChangePasswordConfirm}
+      />
     </div>
   );
 };
