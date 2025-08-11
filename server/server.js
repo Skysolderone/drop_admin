@@ -19,6 +19,8 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 
 // CORS 配置
+// 打印实际使用的 CORS origin
+console.log('CORS origin:', process.env.CLIENT_URL || 'http://localhost:5173');
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true,
