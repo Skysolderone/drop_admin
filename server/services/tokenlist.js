@@ -366,8 +366,9 @@ const TokenList = {
 
             if (sets.length === 0) return { affectedRows: 0 };
 
-            const where = '(`id` = ? OR `token_address` = ?)';
-            params.push(idOrAddress, idOrAddress);
+            // 只使用ID进行更新，避免地址字符串与数字类型比较的类型转换错误
+            const where = '`id` = ?';
+            params.push(idOrAddress);
             const sql = `UPDATE t_airdrop_token SET ${sets.join(', ')} WHERE ${where}`;
             console.log('执行更新 SQL:', sql, '参数:', params);
             const result = await query(sql, params);
@@ -385,14 +386,8 @@ const TokenList = {
                     reasonObj = data.swap_desc;
                 }
 
-                // 需要实际的 token id
-                let tokenId = undefined;
-                try {
-                    const rows = await query('SELECT id FROM t_airdrop_token WHERE id = ? OR token_address = ? LIMIT 1', [idOrAddress, idOrAddress]);
-                    tokenId = rows?.[0]?.id;
-                } catch (idErr) {
-                    console.error('查询 token id 失败:', idErr);
-                }
+                // 需要实际的 token id，编辑时传入的idOrAddress就是ID
+                let tokenId = idOrAddress;
 
                 if (tokenId) {
                     if (swapStatusVal === 1) {

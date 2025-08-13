@@ -3,6 +3,7 @@ import { Table, Button, Space, Tag, Select, Input, message, Modal } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import api from '../lib/axios';
 import AddTokenModal from '../components/AddTokenModal';
+import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 // 工具函数：获取完整的图片URL
 const getImageUrl = (path: string) => {
@@ -28,6 +29,9 @@ const TokenList: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState('all');
     const [editingToken, setEditingToken] = useState<any>(null);
     const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+    const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+    const [tokenToDelete, setTokenToDelete] = useState<any>(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
     const { confirm } = Modal;
 
     // 获取代币列表
@@ -162,28 +166,36 @@ const TokenList: React.FC = () => {
     };
 
     const handleDelete = (record: any) => {
-        confirm({
-            title: '确认删除',
-            icon: <ExclamationCircleOutlined />,
-            content: `确定要删除代币 "${record.tokenName}" 吗？此操作不可撤销。`,
-            okText: '确认删除',
-            okType: 'danger',
-            cancelText: '取消',
-            async onOk() {
-                try {
-                    const { data: result } = await api.delete(`/api/tokens/tokenlists/${record.id}`);
-                    if (result.code === 200) {
-                        message.success('代币删除成功！');
-                        fetchTokens(pagination.current, pagination.pageSize, statusFilter === 'all' ? undefined : statusFilter, searchValue);
-                    } else {
-                        message.error(result.message || '删除失败');
-                    }
-                } catch (error: any) {
-                    console.error('删除代币错误:', error);
-                    message.error(error?.response?.data?.message || error?.message || '删除失败');
-                }
-            },
-        });
+        setTokenToDelete(record);
+        setDeleteModalVisible(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!tokenToDelete) return;
+        
+        setDeleteLoading(true);
+        try {
+            const { data: result } = await api.delete(`/api/tokens/tokenlists/${tokenToDelete.id}`);
+            if (result.code === 200) {
+                message.success('代币删除成功！');
+                fetchTokens(pagination.current, pagination.pageSize, statusFilter === 'all' ? undefined : statusFilter, searchValue);
+            } else {
+                message.error(result.message || '删除失败');
+            }
+        } catch (error: any) {
+            console.error('删除代币错误:', error);
+            message.error(error?.response?.data?.message || error?.message || '删除失败');
+        } finally {
+            setDeleteLoading(false);
+            setDeleteModalVisible(false);
+            setTokenToDelete(null);
+        }
+    };
+
+    const cancelDelete = () => {
+        if (deleteLoading) return; // 防止删除过程中取消
+        setDeleteModalVisible(false);
+        setTokenToDelete(null);
     };
 
     const handleExportCSV = async () => {
@@ -487,6 +499,21 @@ const TokenList: React.FC = () => {
                 onSave={handleSave}
                 initialValues={editingToken}
                 mode={modalMode}
+            />
+
+            {/* 删除确认模态框 */}
+            <DeleteConfirmModal
+                visible={deleteModalVisible}
+                title="确认删除"
+                content={
+                    <>
+                        确定要删除代币 <strong>"{tokenToDelete?.tokenName}"</strong> 吗？<br />
+                        此操作不可撤销。
+                    </>
+                }
+                onConfirm={confirmDelete}
+                onCancel={cancelDelete}
+                loading={deleteLoading}
             />
         </div>
     );
