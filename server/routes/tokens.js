@@ -6,8 +6,6 @@ import {
     updateToken,
     getTokenLans,
     getTokenDetail,
-    getTokenPrice,
-    softDeleteToken,
 } from '../controllers/tokenlist.js';
 
 const router = express.Router();
@@ -21,10 +19,6 @@ router.put('/tokenlists/:id', updateToken);
 router.get('/tokenlists/:id/lans', getTokenLans);
 // 详情：含 airdrop 方法
 router.get('/tokenlists/:id/detail', getTokenDetail);
-// 获取token价格
-router.get('/tokenlists/price/:address', getTokenPrice);
-// 软删除token
-router.delete('/tokenlists/:id', softDeleteToken);
 
 
 export default router;
