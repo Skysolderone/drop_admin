@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import dayjs from 'dayjs';
 import { Modal, Form, Tabs, Row, Col, Input, Radio, Upload, Button, message, Card, DatePicker, Checkbox } from 'antd';
 import { UploadOutlined, CloseOutlined, WarningFilled } from '@ant-design/icons';
-// import api from '../lib/axios';
+import api from '../lib/axios';
 
 const { TextArea } = Input;
 
@@ -139,6 +139,8 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     const [swapSupport, setSwapSupport] = useState('yes');
     const [airdropSupport, setAirdropSupport] = useState('yes');
     const [saving, setSaving] = useState(false);
+    const [tokenPriceCache, setTokenPriceCache] = useState<Record<string, number>>({});
+    const debounceTimersRef = React.useRef<Record<string, NodeJS.Timeout>>({});
     // Tabs 受控，防止某些环境下 TabHeader 使用 <a> 导致浏览器跳转
     const [activeTabKey, setActiveTabKey] = useState<'basic' | 'swap' | 'airdrop'>(defaultTabKey ?? 'basic');
     React.useEffect(() => {
@@ -170,6 +172,103 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     const normFile = (e: any) => {
         if (Array.isArray(e)) return e;
         return e?.fileList ?? [];
+    };
+
+    // 统一的图片URL处理函数
+    const getImagePreviewUrl = (file: any): string | undefined => {
+        if (!file) return undefined;
+        
+        // 优先级：上传响应的URL > file.url > thumbUrl > 本地对象URL
+        let url: string | undefined = 
+            file?.response?.data?.url ||
+            file?.response?.url ||
+            file?.url ||
+            file?.thumbUrl;
+
+        // 处理相对路径，由于有Vite代理配置，直接使用相对路径即可
+        if (url && !/^https?:\/\//i.test(url)) {
+            if (!url.startsWith('/')) url = `/${url}`;
+            // 统一路径格式
+            url = url.replace(/^\/uploadsurlpic\//i, '/uploadurlpic/');
+        }
+
+        // 最后回退：本地文件预览
+        if (!url && file?.originFileObj) {
+            try {
+                url = URL.createObjectURL(file.originFileObj);
+            } catch {
+                // 忽略错误
+            }
+        }
+
+        return url;
+    };
+
+    // 自动获取代币价格
+    const fetchTokenPrice = async (tokenAddress: string): Promise<number | null> => {
+        if (!tokenAddress) return null;
+        
+        // 检查缓存
+        if (tokenPriceCache[tokenAddress]) {
+            return tokenPriceCache[tokenAddress];
+        }
+
+        try {
+            const { data: result } = await api.get(`/api/tokens/price/${encodeURIComponent(tokenAddress)}`);
+            if (result.code === 200 && result.data?.price) {
+                const price = parseFloat(result.data.price);
+                setTokenPriceCache(prev => ({ ...prev, [tokenAddress]: price }));
+                return price;
+            }
+        } catch (error) {
+            console.error('获取价格失败:', error);
+        }
+        return null;
+    };
+
+    // 防抖计算Value/day
+    const debouncedCalculateValuePerDay = (methodIndex: number, delay: number = 500) => {
+        const key = `calculate-${methodIndex}`;
+        
+        // 清除之前的定时器
+        if (debounceTimersRef.current[key]) {
+            clearTimeout(debounceTimersRef.current[key]);
+        }
+        
+        // 设置新的定时器
+        debounceTimersRef.current[key] = setTimeout(async () => {
+            const tokenAddress = form.getFieldValue('tokenAddress');
+            const amountPerDay = form.getFieldValue(['airdropMethods', methodIndex, 'amountPerDay']);
+            
+            if (!tokenAddress || !amountPerDay || isNaN(parseFloat(amountPerDay))) {
+                form.setFieldValue(['airdropMethods', methodIndex, 'valuePerDay'], '');
+                return;
+            }
+
+            const price = await fetchTokenPrice(tokenAddress);
+            if (price !== null) {
+                const valuePerDay = (parseFloat(amountPerDay) * price).toFixed(6);
+                form.setFieldValue(['airdropMethods', methodIndex, 'valuePerDay'], valuePerDay);
+            }
+        }, delay);
+    };
+
+    // 防抖重新计算所有方法
+    const debouncedRecalculateAll = (delay: number = 800) => {
+        const key = 'recalculate-all';
+        
+        // 清除之前的定时器
+        if (debounceTimersRef.current[key]) {
+            clearTimeout(debounceTimersRef.current[key]);
+        }
+        
+        // 设置新的定时器
+        debounceTimersRef.current[key] = setTimeout(() => {
+            const airdropMethods = form.getFieldValue('airdropMethods') || [];
+            airdropMethods.forEach((_: any, index: number) => {
+                debouncedCalculateValuePerDay(index, 100);
+            });
+        }, delay);
     };
 
     const handleSave = async () => {
@@ -279,9 +378,16 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     };
 
     const handleCancel = () => {
+        // 清除所有防抖定时器
+        Object.values(debounceTimersRef.current).forEach(timer => {
+            if (timer) clearTimeout(timer);
+        });
+        debounceTimersRef.current = {};
+        
         form.resetFields();
         setSwapSupport('yes');
         setAirdropSupport('yes');
+        setTokenPriceCache({});
         onCancel();
     };
 
@@ -573,7 +679,14 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                 label="代币地址"
                                 rules={[{ required: true, message: '请输入代币地址' }]}
                             >
-                                <Input placeholder="请输入代币地址" />
+                                <Input 
+                                    placeholder="请输入代币地址" 
+                                    onChange={() => {
+                                        // 清除价格缓存，使用防抖重新计算所有方法的价格
+                                        setTokenPriceCache({});
+                                        debouncedRecalculateAll();
+                                    }}
+                                />
                             </Form.Item>
                         </Col>
                     </Row>
@@ -657,7 +770,6 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                             maxCount={1}
                             listType="picture"
                             accept="image/*"
-                            defaultFileList={initialValues?.logo ? [{ uid: '-1', name: 'logo.png', status: 'done', url: initialValues.logo } as any] : undefined}
                         >
                             <Button icon={<UploadOutlined />}>选择文件</Button>
                         </Upload>
@@ -922,25 +1034,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                                                 {({ getFieldValue }) => {
                                                                     const fileList = getFieldValue(['airdropMethods', field.name, 'image']) || [];
                                                                     const file = fileList[0];
-                                                                    // 兼容多种来源：file.url、上传响应、thumbUrl、本地文件
-                                                                    let url: string | undefined =
-                                                                        file?.url ||
-                                                                        file?.thumbUrl ||
-                                                                        (file?.response?.url ?? file?.response?.data?.url);
-
-                                                                    // 补齐相对路径前缀，确保以 / 开头（便于被 Vite 代理到后端）
-                                                                    if (url && !/^https?:\/\//i.test(url)) {
-                                                                        if (!url.startsWith('/')) url = `/${url}`;
-                                                                        // 兼容旧数据：统一到 /uploadurlpic
-                                                                        url = url.replace(/^\/uploadsurlpic\//i, '/uploadurlpic/');
-                                                                    }
-
-                                                                    // 最后回退：本地对象 URL（仅在未拿到线上地址时使用）
-                                                                    if (!url && file?.originFileObj) {
-                                                                        try {
-                                                                            url = URL.createObjectURL(file.originFileObj);
-                                                                        } catch { }
-                                                                    }
+                                                                    const url = getImagePreviewUrl(file);
 
                                                                     return (
                                                                         <div
@@ -961,6 +1055,14 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                                                                     src={url}
                                                                                     alt="预览"
                                                                                     style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                                                                                    onError={(e) => {
+                                                                                        console.error('图片加载失败:', url);
+                                                                                        (e.target as HTMLImageElement).style.display = 'none';
+                                                                                        const parent = (e.target as HTMLImageElement).parentElement;
+                                                                                        if (parent) {
+                                                                                            parent.innerHTML = '<span style="color: #999">图片加载失败</span>';
+                                                                                        }
+                                                                                    }}
                                                                                 />
                                                                             ) : (
                                                                                 <span style={{ color: '#999' }}>暂无预览</span>
@@ -992,7 +1094,15 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                                                 fieldKey={[field.fieldKey!, 'amountPerDay']}
                                                                 label="Amount/day"
                                                             >
-                                                                <Input type="number" min={0} placeholder="" />
+                                                                <Input 
+                                                                    type="number" 
+                                                                    min={0} 
+                                                                    placeholder="" 
+                                                                    onChange={() => {
+                                                                        // 使用防抖函数
+                                                                        debouncedCalculateValuePerDay(field.name);
+                                                                    }}
+                                                                />
                                                             </Form.Item>
                                                         </Col>
                                                         <Col span={12}>
@@ -1000,9 +1110,14 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                                                 {...restField}
                                                                 name={[field.name, 'valuePerDay']}
                                                                 fieldKey={[field.fieldKey!, 'valuePerDay']}
-                                                                label="Value/day"
+                                                                label="Value/day (自动计算)"
                                                             >
-                                                                <Input type="number" min={0} placeholder="" />
+                                                                <Input 
+                                                                    type="number" 
+                                                                    min={0} 
+                                                                    placeholder="将根据代币地址和Amount/day自动计算" 
+                                                                    readOnly
+                                                                />
                                                             </Form.Item>
                                                         </Col>
                                                     </Row>
