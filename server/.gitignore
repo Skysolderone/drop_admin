@@ -42,3 +42,7 @@ Thumbs.db
 # 临时文件
 tmp/
 temp/
+
+# 上传目录（由接口生成，不入库）
+uploads/
+uploadurlpic/

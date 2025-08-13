@@ -3,20 +3,40 @@ import { query } from '../config/database.js';
 
 
 const TokenList = {
-    list: async (pageIndex = 0, pageSize = 10) => {
+    list: async (pageIndex = 0, pageSize = 10, statusFilter = null) => {
         try {
             // 确保参数为正整数
             const safePageIndex = Math.max(0, parseInt(pageIndex) || 0);
             const safePageSize = Math.max(1, Math.min(100, parseInt(pageSize) || 10)); // 限制最大100条
             const offset = safePageIndex * safePageSize;
             
-            console.log(`Fetching market data with pageIndex: ${safePageIndex}, pageSize: ${safePageSize}, offset: ${offset}`);
+            console.log(`Fetching tokens with pageIndex: ${safePageIndex}, pageSize: ${safePageSize}, offset: ${offset}, statusFilter: ${statusFilter}`);
             
-            // 使用更兼容的 LIMIT 语法
-            const sql = `SELECT * FROM t_airdrop_token ORDER BY create_at DESC LIMIT ${safePageSize} OFFSET ${offset}`;
-            console.log('执行 SQL:', sql);
+            // 构建WHERE条件
+            let whereClause = '';
+            const params = [];
             
-            const tokens = await query(sql);
+            if (statusFilter === 'all') {
+                // All: 排除软删除的数据，显示正常数据（包括空字符串，但排除字符串"0"）
+                whereClause = 'WHERE (remark IS NULL OR remark != "0")';
+            } else if (statusFilter === "Can't swap") {
+                // Can't swap: swap_status=0，排除软删除的数据
+                whereClause = 'WHERE swap_status = 0 AND (remark IS NULL OR remark != "0")';
+            } else if (statusFilter === "Can't airdrop") {
+                // Can't airdrop: airdrop_status=0，排除软删除的数据
+                whereClause = 'WHERE airdrop_status = 0 AND (remark IS NULL OR remark != "0")';
+            } else if (statusFilter === 'Invalid') {
+                // Invalid: 只显示remark为字符串"0"的记录（软删除的数据）
+                whereClause = 'WHERE remark = "0"';
+            } else {
+                // 默认情况：排除软删除的数据
+                whereClause = 'WHERE (remark IS NULL OR remark != "0")';
+            }
+            
+            const sql = `SELECT * FROM t_airdrop_token ${whereClause} ORDER BY create_at DESC LIMIT ${safePageSize} OFFSET ${offset}`;
+            console.log('执行 SQL:', sql, '参数:', params);
+            
+            const tokens = await query(sql, params);
             // 追加：读取 t_airdrop_lans 聚合原因，便于前端编辑态回填
             try {
                 const ids = (tokens || []).map(t => t?.id).filter(Boolean);
@@ -52,9 +72,29 @@ const TokenList = {
         }
     },
 
-    count: async () => {
+    count: async (statusFilter = null) => {
         try {
-            const sql = 'SELECT COUNT(*) as total FROM t_airdrop_token';
+            // 构建WHERE条件，与list方法保持一致
+            let whereClause = '';
+            
+            if (statusFilter === 'all') {
+                // All: 排除软删除的数据，显示正常数据（包括空字符串，但排除字符串"0"）
+                whereClause = 'WHERE (remark IS NULL OR remark != "0")';
+            } else if (statusFilter === "Can't swap") {
+                // Can't swap: swap_status=0，排除软删除的数据
+                whereClause = 'WHERE swap_status = 0 AND (remark IS NULL OR remark != "0")';
+            } else if (statusFilter === "Can't airdrop") {
+                // Can't airdrop: airdrop_status=0，排除软删除的数据
+                whereClause = 'WHERE airdrop_status = 0 AND (remark IS NULL OR remark != "0")';
+            } else if (statusFilter === 'Invalid') {
+                // Invalid: 只显示remark为字符串"0"的记录（软删除的数据）
+                whereClause = 'WHERE remark = "0"';
+            } else {
+                // 默认情况：排除软删除的数据
+                whereClause = 'WHERE (remark IS NULL OR remark != "0")';
+            }
+            
+            const sql = `SELECT COUNT(*) as total FROM t_airdrop_token ${whereClause}`;
             console.log('执行计数 SQL:', sql);
             
             const result = await query(sql);
@@ -460,6 +500,34 @@ const TokenList = {
             throw error;
         }
     },
+    // 根据token地址查询价格
+    getPriceByAddress: async (tokenAddress) => {
+        try {
+            const sql = 'SELECT price FROM t_wallet_tokens WHERE address = ? LIMIT 1';
+            console.log('查询价格 SQL:', sql, '参数:', tokenAddress);
+            
+            const result = await query(sql, [tokenAddress]);
+            return result[0]?.price || 0;
+        } catch (error) {
+            console.error('TokenList.getPriceByAddress 错误:', error);
+            throw error;
+        }
+    },
+
+    // 软删除token (设置remark为0)
+    softDelete: async (idOrAddress) => {
+        try {
+            const sql = 'UPDATE t_airdrop_token SET remark = ? WHERE id = ? OR token_address = ?';
+            console.log('软删除 SQL:', sql, '参数:', ["0", idOrAddress, idOrAddress]);
+            
+            const result = await query(sql, ["0", idOrAddress, idOrAddress]);
+            return result.affectedRows > 0;
+        } catch (error) {
+            console.error('TokenList.softDelete 错误:', error);
+            throw error;
+        }
+    },
+    
     //存图片
   
 };

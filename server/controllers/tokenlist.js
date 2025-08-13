@@ -10,12 +10,12 @@ export const getAllTokens = async (req, res) => {
     const pageIndex = Math.max(0, (parseInt(page) || 1) - 1); // 转换为从0开始的索引
     const pageSize = Math.max(1, Math.min(100, parseInt(limit) || 10));
 
-    console.log(`Controller: page=${page}, limit=${limit}, pageIndex=${pageIndex}, pageSize=${pageSize}`);
+    console.log(`Controller: page=${page}, limit=${limit}, status=${status}, search=${search}, pageIndex=${pageIndex}, pageSize=${pageSize}`);
 
     // 并行获取数据和总数
     const [data_list, totalCount] = await Promise.all([
-      TokenList.list(pageIndex, pageSize),
-      TokenList.count()
+      TokenList.list(pageIndex, pageSize, status),
+      TokenList.count(status)
     ]);
     
     return application.create_response(res, {
@@ -86,6 +86,38 @@ export const getTokenDetail = async (req, res) => {
   } catch (error) {
     console.error('获取 token 详情错误:', error);
     return application.create_error_response(res, 500, '获取 token 详情失败');
+  }
+};
+
+// 根据token地址获取价格
+export const getTokenPrice = async (req, res) => {
+  try {
+    const { address } = req.params;
+    if (!address) return application.create_error_response(res, 400, '缺少token地址');
+    
+    const price = await TokenList.getPriceByAddress(address);
+    return application.create_response(res, { address, price });
+  } catch (error) {
+    console.error('获取token价格错误:', error);
+    return application.create_error_response(res, 500, '获取token价格失败');
+  }
+};
+
+// 软删除token
+export const softDeleteToken = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return application.create_error_response(res, 400, '缺少token ID');
+    
+    const success = await TokenList.softDelete(id);
+    if (success) {
+      return application.create_response_ok(res);
+    } else {
+      return application.create_error_response(res, 404, '未找到要删除的token');
+    }
+  } catch (error) {
+    console.error('软删除token错误:', error);
+    return application.create_error_response(res, 500, '删除token失败');
   }
 };
 
