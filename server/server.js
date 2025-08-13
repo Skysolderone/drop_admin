@@ -2,6 +2,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
 import helmet from 'helmet';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { initDatabase, testConnection } from './config/database.js';
 
 // 导入路由
@@ -30,6 +33,93 @@ app.use(cors({
 // 解析JSON
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 静态资源：用于访问上传后的文件
+const uploadsDir = path.resolve('./uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
+
+// 新增：单独的图片目录 uploadurlpic
+const uploadUrlPicDir = path.resolve('./uploadurlpic');
+if (!fs.existsSync(uploadUrlPicDir)) {
+  fs.mkdirSync(uploadUrlPicDir, { recursive: true });
+}
+app.use('/uploadurlpic', express.static(uploadUrlPicDir));
+// 兼容历史路径：/uploadsurlpic 指向同一目录
+app.use('/uploadsurlpic', express.static(uploadUrlPicDir));
+
+// 配置 multer：保存到本地 uploads 目录
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    // 使用时间戳+随机数+原始后缀
+    const ext = path.extname(file.originalname || '');
+    const safeBase = (file.fieldname || 'file').replace(/[^a-zA-Z0-9_-]/g, '');
+    cb(null, `${safeBase}_${Date.now()}_${Math.random().toString(36).slice(2,8)}${ext}`);
+  }
+});
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+      return cb(new Error('只允许上传图片文件'));
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+});
+
+// 为 uploadurlpic 提供单独的存储与中间件
+const storageUrlPic = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadUrlPicDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname || '');
+    const safeBase = (file.fieldname || 'file').replace(/[^a-zA-Z0-9_-]/g, '');
+    cb(null, `${safeBase}_${Date.now()}_${Math.random().toString(36).slice(2,8)}${ext}`);
+  }
+});
+const uploadUrlPic = multer({
+  storage: storageUrlPic,
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+      return cb(new Error('只允许上传图片文件'));
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
+
+// 上传接口：单文件
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  try {
+    const f = req.file;
+    if (!f) return res.status(400).json({ code: 400, message: '未接收到文件' });
+    const url = `/uploads/${f.filename}`;
+    res.json({ code: 200, message: '上传成功', data: { url, filename: f.filename, mimetype: f.mimetype, size: f.size } });
+  } catch (err) {
+    console.error('上传失败:', err);
+    res.status(500).json({ code: 500, message: '上传失败' });
+  }
+});
+
+// 新增上传接口：保存到 /uploadurlpic
+app.post('/api/uploadurlpic', uploadUrlPic.single('file'), (req, res) => {
+  try {
+    const f = req.file;
+    if (!f) return res.status(400).json({ code: 400, message: '未接收到文件' });
+    const url = `/uploadurlpic/${f.filename}`;
+    res.json({ code: 200, message: '上传成功', data: { url, filename: f.filename, mimetype: f.mimetype, size: f.size } });
+  } catch (err) {
+    console.error('uploadurlpic 上传失败:', err);
+    res.status(500).json({ code: 500, message: '上传失败' });
+  }
+});
 
 // 健康检查端点
 app.get('/health', (req, res) => {

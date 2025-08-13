@@ -17,7 +17,7 @@ async function testLoginAPI(username, password) {
     // 请求选项
     const options = {
       hostname: 'localhost',
-      port: 5173,
+      port: 3001,
       path: '/api/auth/login',
       method: 'POST',
       headers: {
