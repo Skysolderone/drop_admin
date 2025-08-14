@@ -159,9 +159,10 @@ const TokenList = {
                 : (data.isHot === 'yes' ? 1 : 0);
             const priority = Number(data.priority || 0);
             const remark = data.remark || '';
+            const authentication = data.authentication || '';
 
             const now = new Date();
-            const sql = `INSERT INTO t_airdrop_token (\`id\`, \`token_name\`, \`token_symbol\`, \`token_address\`, \`token_desc\`, \`logo\`, \`swap_status\`, \`swap_desc\`, \`no_swap_url\`, \`airdrop_status\`, \`top_status\`, \`hot_status\`, \`priority\`, \`remark\`, \`create_at\`, \`update_at\`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            const sql = `INSERT INTO t_airdrop_token (\`id\`, \`token_name\`, \`token_symbol\`, \`token_address\`, \`token_desc\`, \`logo\`, \`swap_status\`, \`swap_desc\`, \`no_swap_url\`, \`airdrop_status\`, \`top_status\`, \`hot_status\`, \`priority\`, \`remark\`, \`authentication\`, \`create_at\`, \`update_at\`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             const params = [
                 id,
                 token_name,
@@ -177,6 +178,7 @@ const TokenList = {
                 hot_status,
                 priority,
                 remark,
+                authentication,
                 now,
                 now
             ];
@@ -196,6 +198,19 @@ const TokenList = {
                         try { reasonObj = JSON.parse(data.swap_desc); } catch { reasonObj = {}; }
                     } else if (data.swap_desc && typeof data.swap_desc === 'object') {
                         reasonObj = data.swap_desc;
+                    } else {
+                        // 兼容：从独立字段 swapReason_xx 汇总
+                        try {
+                            const entries = Object.entries(data).filter(([k, v]) => k.startsWith('swapReason_') && typeof v === 'string' && v.trim() !== '');
+                            if (entries.length > 0) {
+                                const obj = {};
+                                for (const [k, v] of entries) {
+                                    const code = k.replace(/^swapReason_/, '');
+                                    obj[code] = (v || '').toString().trim();
+                                }
+                                reasonObj = obj;
+                            }
+                        } catch {}
                     }
 
                     const entries = Object.entries(reasonObj).filter(([_, v]) => (v ?? '').toString().trim() !== '');
@@ -368,6 +383,7 @@ const TokenList = {
                 : (data.isHot != null ? (data.isHot === 'yes' ? 1 : 0) : undefined);
             const priority = data.priority != null ? Number(data.priority) : undefined;
             const remark = data.remark;
+            const authentication = data.authentication;
 
             // 动态构建 SET 子句
             const sets = [];
@@ -386,6 +402,7 @@ const TokenList = {
             pushSet('hot_status', hot_status);
             pushSet('priority', priority);
             pushSet('remark', remark);
+            pushSet('authentication', authentication);
             // 更新更新时间
             pushSet('update_at', new Date());
 
@@ -409,6 +426,19 @@ const TokenList = {
                     try { reasonObj = JSON.parse(data.swap_desc); } catch { reasonObj = undefined; }
                 } else if (data.swap_desc && typeof data.swap_desc === 'object') {
                     reasonObj = data.swap_desc;
+                } else {
+                    // 兼容：从独立字段 swapReason_xx 汇总
+                    try {
+                        const entries = Object.entries(data).filter(([k, v]) => k.startsWith('swapReason_') && typeof v === 'string' && v.trim() !== '');
+                        if (entries.length > 0) {
+                            const obj = {};
+                            for (const [k, v] of entries) {
+                                const code = k.replace(/^swapReason_/, '');
+                                obj[code] = (v || '').toString().trim();
+                            }
+                            reasonObj = obj;
+                        }
+                    } catch {}
                 }
 
                 // 需要实际的 token id，编辑时传入的idOrAddress就是ID
