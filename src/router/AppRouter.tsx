@@ -1,5 +1,6 @@
 import React, { Suspense } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { App } from 'antd';
 import AppLayout from './Layout.tsx';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -80,7 +81,11 @@ const router = createBrowserRouter([
 ]);
 
 const AppRouter: React.FC = () => {
-  return <RouterProvider router={router} />;
+  return (
+    <App>
+      <RouterProvider router={router} />
+    </App>
+  );
 };
 
 export default AppRouter;

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Form, Input, Button, Card, Typography, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import api from '../lib/axios';
 
 const { Title } = Typography;
 
@@ -16,41 +17,78 @@ const Login: React.FC = () => {
   const onFinish = async (values: LoginForm) => {
     setLoading(true);
     try {
-      // 模拟登录请求
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // 这里应该是真实的登录逻辑
-      if (values.username === 'admin' && values.password === '123456') {
+      // 调用真实的登录接口
+      const response = await api.post('/api/auth/login', {
+        username: values.username,
+        password: values.password
+      });
+
+      if (response.data?.success) {
         message.success('登录成功！');
-        // 存储登录状态
+        
+        // 存储登录状态和用户信息
         localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userInfo', JSON.stringify({ username: values.username }));
+        const userInfo = response.data.data;
+        localStorage.setItem('userInfo', JSON.stringify(userInfo));
+        
+        // 如果后端返回了token，也需要存储
+        if (response.data.token) {
+          localStorage.setItem('token', response.data.token);
+        }
+        
         navigate('/token-list');
       } else {
-        message.error('用户名或密码错误！');
+        message.error(response.data?.message || '登录失败');
       }
-    } catch (error) {
-      message.error('登录失败，请稍后重试！');
+    } catch (error: any) {
+      console.error('登录错误:', error);
+      const errorMessage = error.response?.data?.message || error.message || '登录失败，请稍后重试！';
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div style={{ 
+      height: '100vh', 
+      width: '100vw',
+      background: 'linear-gradient(to bottom right, #eff6ff, #e0e7ff)', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      padding: '1rem',
+      overflow: 'hidden',
+      position: 'fixed',
+      top: 0,
+      left: 0
+    }}>
+      <div style={{ width: '100%', maxWidth: '28rem' }}>
         <Card 
-          className="shadow-2xl border-0 rounded-xl"
+          style={{ 
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', 
+            border: 'none', 
+            borderRadius: '0.75rem' 
+          }}
           bodyStyle={{ padding: '2rem' }}
         >
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-              <span className="text-2xl">🔐</span>
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              width: '4rem', 
+              height: '4rem', 
+              backgroundColor: '#dbeafe', 
+              borderRadius: '50%', 
+              marginBottom: '1rem' 
+            }}>
+              <span style={{ fontSize: '1.5rem' }}>🔐</span>
             </div>
-            <Title level={2} className="text-gray-800 mb-2">
+            <Title level={2} style={{ color: '#1f2937', marginBottom: '0.5rem' }}>
               Admin Panel
             </Title>
-            <p className="text-gray-500">请登录您的管理员账户</p>
+            <p style={{ color: '#6b7280' }}>请登录您的管理员账户</p>
           </div>
 
           <Form
@@ -70,7 +108,7 @@ const Login: React.FC = () => {
             >
               <Input 
                 placeholder="请输入用户名"
-                className="rounded-lg"
+                style={{ borderRadius: '0.5rem' }}
               />
             </Form.Item>
 
@@ -84,25 +122,33 @@ const Login: React.FC = () => {
             >
               <Input.Password
                 placeholder="请输入密码"
-                className="rounded-lg"
+                style={{ borderRadius: '0.5rem' }}
               />
             </Form.Item>
 
-            <Form.Item className="mb-0">
+            <Form.Item style={{ marginBottom: 0 }}>
               <Button 
                 type="primary" 
                 htmlType="submit" 
                 loading={loading}
-                className="w-full h-12 rounded-lg bg-blue-600 hover:bg-blue-700 border-blue-600 hover:border-blue-700 text-lg font-medium"
+                style={{
+                  width: '100%',
+                  height: '3rem',
+                  borderRadius: '0.5rem',
+                  backgroundColor: '#2563eb',
+                  borderColor: '#2563eb',
+                  fontSize: '1.125rem',
+                  fontWeight: '500'
+                }}
               >
                 {loading ? '登录中...' : '登录'}
               </Button>
             </Form.Item>
           </Form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500">
-              测试账号: admin / 123456
+          <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+            <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+              请使用管理员账户登录
             </p>
           </div>
         </Card>

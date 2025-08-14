@@ -9,13 +9,18 @@
 import express from 'express';
 import {
     login,
-    loginValidation
+    loginValidation,
+    changePassword,
+    changePasswordValidation
 } from '../controllers/authController.js';
 
 const router = express.Router();
 
 // 用户登录
 router.post('/login', loginValidation, login);
+
+// 修改密码
+router.post('/change-password', changePasswordValidation, changePassword);
 
 
 export default router;

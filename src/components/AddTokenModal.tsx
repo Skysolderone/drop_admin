@@ -578,6 +578,131 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
         }, delay);
     };
 
+    // 防抖翻译函数 - 代币简介
+    const debouncedTranslateDescription = (sourceField: string, delay: number = 1500) => {
+        console.log('debouncedTranslateDescription called with:', sourceField);
+        const key = `translate-${sourceField}`;
+        
+        // 清除之前的定时器
+        if (debounceTimersRef.current[key]) {
+            clearTimeout(debounceTimersRef.current[key]);
+        }
+        
+        // 设置新的定时器
+        debounceTimersRef.current[key] = setTimeout(async () => {
+            const sourceValue = form.getFieldValue(sourceField);
+            console.log('Translation triggered for:', sourceField, 'value:', sourceValue);
+            
+            if (!sourceValue || !sourceValue.trim()) {
+                console.log('No value to translate');
+                return;
+            }
+
+            // 智能检查：只有当其他字段的内容与当前输入源字段内容明显不同时，才跳过翻译
+            const langFields = ['description.en', 'description.zh-TW', 'description.ja', 'description.hi', 'description.pl', 'description.es', 'description.pt', 'description.ms', 'description.id', 'description.ko'];
+            const otherFields = langFields.filter(field => field !== sourceField);
+            
+            // 检查其他字段是否有明显的用户手动输入内容（长文本或明显不同的内容）
+            const hasSignificantContent = otherFields.some(field => {
+                const value = form.getFieldValue(field);
+                if (!value || !value.trim()) return false;
+                
+                const trimmedValue = value.trim();
+                const trimmedSource = sourceValue.trim();
+                
+                // 如果其他字段的内容与当前输入完全相同，说明可能是之前的自动翻译结果，可以重新翻译
+                if (trimmedValue.toLowerCase() === trimmedSource.toLowerCase()) return false;
+                
+                // 如果内容很短（≤10个字符），认为可能是自动翻译的结果，允许重新翻译
+                if (trimmedValue.length <= 10) return false;
+                
+                // 只有长文本（>10字符）且与源文本明显不同时，才认为是用户手动输入的重要内容
+                return trimmedValue.length > 10 && 
+                       Math.abs(trimmedValue.length - trimmedSource.length) > Math.max(trimmedSource.length * 0.5, 5);
+            });
+
+            console.log('Content check:', { 
+                sourceValue: sourceValue.trim(), 
+                hasSignificantContent,
+                otherFieldsValues: otherFields.map(field => ({ field, value: form.getFieldValue(field) }))
+            });
+
+            if (hasSignificantContent) {
+                console.log('Other fields have significant different content, skipping translation to preserve user input');
+                return; // 其他字段已有明显不同的内容，不进行自动翻译
+            }
+
+            setTranslating(true);
+            console.log('Starting translation process...');
+            
+            try {
+                // 语言代码映射
+                const langMap: Record<string, string> = {
+                    'description.en': 'English',
+                    'description.zh-TW': '繁體中文',
+                    'description.ja': '日本語',
+                    'description.hi': 'हिन्दी',
+                    'description.pl': 'Polski',
+                    'description.es': 'Español',
+                    'description.pt': 'Português',
+                    'description.ms': 'Bahasa Melayu',
+                    'description.id': 'Bahasa Indonesia',
+                    'description.ko': '한국어'
+                };
+
+                // 排除源语言，获取目标语言
+                const targetFields = Object.keys(langMap).filter(field => field !== sourceField);
+                const targetLanguages = targetFields.map(field => langMap[field]);
+
+                console.log('Target languages for translation:', targetLanguages);
+                console.log('Calling translateText with:', { sourceValue, targetLanguages });
+
+                const translations = await translateText(sourceValue, targetLanguages);
+                
+                console.log('Translation result:', translations);
+
+                // 将翻译结果填入对应字段（填入空白字段或短文本字段，认为短文本可能是之前的自动翻译）
+                const updateFields: Record<string, any> = {};
+                targetFields.forEach((field, index) => {
+                    const currentValue = form.getFieldValue(field);
+                    console.log(`Checking field ${field}, current value:`, currentValue);
+                    
+                    // 允许更新的条件：空白字段 或 内容很短（可能是之前的自动翻译）
+                    const shouldUpdate = !currentValue || 
+                                       !currentValue.trim() || 
+                                       currentValue.trim().length <= 10; // 短于10个字符认为可以重新翻译
+                    
+                    if (shouldUpdate) {
+                        const langName = targetLanguages[index];
+                        if (translations[langName]) {
+                            updateFields[field] = translations[langName];
+                            console.log(`Adding translation for ${field}: ${translations[langName]}`);
+                        }
+                    } else {
+                        console.log(`Skipping field ${field} due to existing content: ${currentValue}`);
+                    }
+                });
+
+                console.log('Fields to update:', updateFields);
+                
+                form.setFieldsValue(updateFields);
+                if (Object.keys(updateFields).length > 0) {
+                    message.success(`已自动翻译 ${Object.keys(updateFields).length} 种语言`);
+                    console.log('Translation completed successfully');
+                } else {
+                    console.log('No fields were updated (all target fields already have content)');
+                }
+            } catch (error: any) {
+                console.error('翻译失败:', error);
+                console.error('Error details:', error?.response?.data || error?.message || error);
+                message.error('自动翻译失败: ' + (error?.message || '未知错误'));
+            } finally {
+                setTranslating(false);
+                console.log('Translation process finished');
+            }
+        }, delay);
+    };
+
     // 确认新增国家
     const confirmAddCountry = () => {
         const code = (addCountryCode || '').trim().toUpperCase();
@@ -875,61 +1000,121 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                         <Row gutter={[16, 16]}>
                             <Col span={12}>
                                 <Form.Item name={['description', 'en']} rules={[{ required: true, message: '请填写英文简介' }]}>
-                                    <TextArea placeholder="请输入English代币简介" autoSize={{ minRows: 2, maxRows: 4 }} />
+                                    <TextArea 
+                                        placeholder="请输入English代币简介" 
+                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                        onChange={() => {
+                                            debouncedTranslateDescription('description.en');
+                                        }}
+                                    />
                                 </Form.Item>
                                 <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (English) *</div>
                             </Col>
                             <Col span={12}>
                                 <Form.Item name={['description', 'zh-TW']}>
-                                    <TextArea placeholder="请输入繁體中文代币简介" autoSize={{ minRows: 2, maxRows: 4 }} />
+                                    <TextArea 
+                                        placeholder="请输入繁體中文代币简介" 
+                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                        onChange={() => {
+                                            debouncedTranslateDescription('description.zh-TW');
+                                        }}
+                                    />
                                 </Form.Item>
                                 <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (繁體中文)</div>
                             </Col>
                             <Col span={12}>
                                 <Form.Item name={['description', 'ja']}>
-                                    <TextArea placeholder="请输入日本語代币简介" autoSize={{ minRows: 2, maxRows: 4 }} />
+                                    <TextArea 
+                                        placeholder="请输入日本語代币简介" 
+                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                        onChange={() => {
+                                            debouncedTranslateDescription('description.ja');
+                                        }}
+                                    />
                                 </Form.Item>
                                 <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (日本語)</div>
                             </Col>
                             <Col span={12}>
                                 <Form.Item name={['description', 'hi']}>
-                                    <TextArea placeholder="请输入हिन्दी代币简介" autoSize={{ minRows: 2, maxRows: 4 }} />
+                                    <TextArea 
+                                        placeholder="请输入हिन्दी代币简介" 
+                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                        onChange={() => {
+                                            debouncedTranslateDescription('description.hi');
+                                        }}
+                                    />
                                 </Form.Item>
                                 <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (हिन्दी)</div>
                             </Col>
                             <Col span={12}>
                                 <Form.Item name={['description', 'pl']}>
-                                    <TextArea placeholder="请输入Polski代币简介" autoSize={{ minRows: 2, maxRows: 4 }} />
+                                    <TextArea 
+                                        placeholder="请输入Polski代币简介" 
+                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                        onChange={() => {
+                                            debouncedTranslateDescription('description.pl');
+                                        }}
+                                    />
                                 </Form.Item>
                                 <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (Polski)</div>
                             </Col>
                             <Col span={12}>
                                 <Form.Item name={['description', 'es']}>
-                                    <TextArea placeholder="请输入Español代币简介" autoSize={{ minRows: 2, maxRows: 4 }} />
+                                    <TextArea 
+                                        placeholder="请输入Español代币简介" 
+                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                        onChange={() => {
+                                            debouncedTranslateDescription('description.es');
+                                        }}
+                                    />
                                 </Form.Item>
                                 <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (Español)</div>
                             </Col>
                             <Col span={12}>
                                 <Form.Item name={['description', 'pt']}>
-                                    <TextArea placeholder="请输入Português代币简介" autoSize={{ minRows: 2, maxRows: 4 }} />
+                                    <TextArea 
+                                        placeholder="请输入Português代币简介" 
+                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                        onChange={() => {
+                                            debouncedTranslateDescription('description.pt');
+                                        }}
+                                    />
                                 </Form.Item>
                                 <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (Português)</div>
                             </Col>
                             <Col span={12}>
                                 <Form.Item name={['description', 'ms']}>
-                                    <TextArea placeholder="请输入Bahasa Melayu代币简介" autoSize={{ minRows: 2, maxRows: 4 }} />
+                                    <TextArea 
+                                        placeholder="请输入Bahasa Melayu代币简介" 
+                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                        onChange={() => {
+                                            debouncedTranslateDescription('description.ms');
+                                        }}
+                                    />
                                 </Form.Item>
                                 <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (Bahasa Melayu)</div>
                             </Col>
                             <Col span={12}>
                                 <Form.Item name={['description', 'id']}>
-                                    <TextArea placeholder="请输入Bahasa Indonesia代币简介" autoSize={{ minRows: 2, maxRows: 4 }} />
+                                    <TextArea 
+                                        placeholder="请输入Bahasa Indonesia代币简介" 
+                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                        onChange={() => {
+                                            debouncedTranslateDescription('description.id');
+                                        }}
+                                    />
                                 </Form.Item>
                                 <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (Bahasa Indonesia)</div>
                             </Col>
                             <Col span={12}>
                                 <Form.Item name={['description', 'ko']}>
-                                    <TextArea placeholder="请输入한국어代币简介" autoSize={{ minRows: 2, maxRows: 4 }} />
+                                    <TextArea 
+                                        placeholder="请输入한국어代币简介" 
+                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                        onChange={() => {
+                                            debouncedTranslateDescription('description.ko');
+                                        }}
+                                    />
                                 </Form.Item>
                                 <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (한국어)</div>
                             </Col>
@@ -1000,7 +1185,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                     </Form.Item>
 
                     {swapSupport === 'no' && (
-                        <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                        <div className="p-4  rounded-lg bg-gray-50">
                             <div className="text-sm text-gray-600 mb-3">请为不支持Swap的原因提供以下语言版本：</div>
                             <Row gutter={[16, 16]}>
                                 <Col span={12}>

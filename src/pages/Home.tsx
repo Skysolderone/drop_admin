@@ -5,7 +5,12 @@ const Home: React.FC = () => {
 
   const [userInfo, setUserInfo] = useState<any>(null);
 
-
+  useEffect(() => {
+    const storedUserInfo = localStorage.getItem('userInfo');
+    if (storedUserInfo) {
+      setUserInfo(JSON.parse(storedUserInfo));
+    }
+  }, []);
 
   return (
     <div>

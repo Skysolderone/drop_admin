@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Form, Input, Button } from 'antd';
+import { Modal, Form, Input, Button, message } from 'antd';
 import { EyeInvisibleOutlined, EyeTwoTone } from '@ant-design/icons';
 
 interface ChangePasswordModalProps {
@@ -16,8 +16,15 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ visible, onCa
       const values = await form.validateFields();
       onConfirm(values);
       form.resetFields();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Validation failed:', error);
+      // 显示验证失败的具体错误信息
+      if (error && error.errorFields && error.errorFields.length > 0) {
+        const firstError = error.errorFields[0];
+        message.error(firstError.errors[0] || '表单验证失败');
+      } else {
+        message.error('请检查输入的信息');
+      }
     }
   };
 

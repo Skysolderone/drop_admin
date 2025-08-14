@@ -25,7 +25,7 @@ api.interceptors.response.use(
   (error: AxiosError<any>) => {
     // 这里不做 UI 提示，留给调用方处理；但规范化错误对象
     const message =
-      (error.response?.data as any)?.message || error.message || '请求失败';
+      (error.response?.data as any)?.msg || (error.response?.data as any)?.message || error.message || '请求失败';
     return Promise.reject({ ...error, message });
   }
 );
