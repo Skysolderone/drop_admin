@@ -2,6 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Table, Input, Button, Select, message, Pagination } from 'antd';
 import api from '../lib/axios';
 
+// 工具函数：地址加密显示（前4位后6位正常显示，中间用...替换）
+const formatAddress = (address: string) => {
+  if (!address || address.length <= 10) return address;
+  const prefix = address.slice(0, 4);
+  const suffix = address.slice(-6);
+  return `${prefix}...${suffix}`;
+};
+
 type MarketRow = {
   key: string | number;
   name: string;
@@ -19,7 +27,7 @@ const TokenMarket: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<MarketRow[]>([]);
   const [search, setSearch] = useState('');
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
 
   const columns = useMemo(
     () => [
@@ -32,7 +40,7 @@ const TokenMarket: React.FC = () => {
         width: 340,
         ellipsis: true,
         render: (addr: string) => (
-          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{addr}</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{formatAddress(addr)}</span>
         ),
       },
       {
@@ -42,8 +50,28 @@ const TokenMarket: React.FC = () => {
         width: 140,
         render: (v: any) => {
           if (v === null || v === undefined || v === '') return '-';
-          const n = Number(v);
-          return isNaN(n) ? String(v) : n.toLocaleString(undefined, { maximumFractionDigits: 10 });
+          const priceStr = String(v);
+          const numPrice = Number(v);
+          
+          if (isNaN(numPrice)) return priceStr;
+          
+          // 对于非常小的价格值（小于0.0001），使用科学计数法
+          if (numPrice < 0.0001 && numPrice > 0) {
+            // 截取科学计数法的有效数字，不使用四舍五入
+            const expStr = numPrice.toExponential(20);
+            const [mantissa, exponent] = expStr.split('e');
+            const truncatedMantissa = mantissa.substring(0, 8); // 截取前8位
+            return `${truncatedMantissa}e${exponent}`;
+          }
+          
+          // 对于正常价格值，直接截取字符串
+          if (priceStr.includes('.')) {
+            const [integer, decimal] = priceStr.split('.');
+            const truncatedDecimal = decimal.substring(0, 10); // 截取小数点后10位
+            return `${integer}.${truncatedDecimal}`;
+          }
+          
+          return priceStr;
         },
       },
       {
@@ -73,7 +101,7 @@ const TokenMarket: React.FC = () => {
     []
   );
 
-  const fetchMarket = async (page = 1, limit = 10, keyword?: string) => {
+  const fetchMarket = async (page = 1, limit = 20, keyword?: string) => {
     setLoading(true);
     try {
       const params: Record<string, string> = {

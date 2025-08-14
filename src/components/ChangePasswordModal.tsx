@@ -54,7 +54,7 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ visible, onCa
         layout="vertical"
         style={{ marginTop: 20 }}
       >
-        <Form.Item
+        <Form.Item 
           label="Old Password"
           name="oldPassword"
           rules={[

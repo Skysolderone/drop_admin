@@ -16,6 +16,14 @@ const getImageUrl = (path: string) => {
     return path;
 };
 
+// 工具函数：地址加密显示（前4位后6位正常显示，中间用...替换）
+const formatAddress = (address: string) => {
+    if (!address || address.length <= 10) return address;
+    const prefix = address.slice(0, 4);
+    const suffix = address.slice(-6);
+    return `${prefix}...${suffix}`;
+};
+
 const TokenList: React.FC = () => {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [tokens, setTokens] = useState<any[]>([]);
@@ -73,6 +81,7 @@ const TokenList: React.FC = () => {
                     tokenAddress: token.address || token.token_address,
                     swapStatus: Number(token.swap_status) !== 0 && token.swap_support !== 'no',
                     airdropStatus: Number(token.airdrop_status) === 1 || token.airdrop_support === 'yes',
+                    authentication: Number(token.authentication) || 0,
                     ...token
                 }));
 
@@ -315,8 +324,48 @@ const TokenList: React.FC = () => {
             ellipsis: true,
             render: (address: string) => (
                 <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                    {address}
+                    {formatAddress(address)}
                 </span>
+            ),
+        },
+        {
+            title: 'Price',
+            dataIndex: 'price',
+            key: 'price',
+            width: 120,
+            render: (price: string | number) => {
+                if (!price || Number(price) === 0) return '-';
+                const priceStr = String(price);
+                
+                // 对于非常小的价格值（小于0.0001），使用科学计数法
+                const numPrice = Number(price);
+                if (numPrice < 0.0001 && numPrice > 0) {
+                    // 截取科学计数法的有效数字，不使用四舍五入
+                    const expStr = numPrice.toExponential(20);
+                    const [mantissa, exponent] = expStr.split('e');
+                    const truncatedMantissa = mantissa.substring(0, 8); // 截取前8位
+                    return `${truncatedMantissa}e${exponent}`;
+                }
+                
+                // 对于正常价格值，直接截取字符串
+                if (priceStr.includes('.')) {
+                    const [integer, decimal] = priceStr.split('.');
+                    const truncatedDecimal = decimal.substring(0, 8); // 截取小数点后8位
+                    return `${integer}.${truncatedDecimal}`;
+                }
+                
+                return priceStr;
+            },
+        },
+        {
+            title: 'Authentication',
+            dataIndex: 'authentication',
+            key: 'authentication',
+            width: 120,
+            render: (authentication: number) => (
+                <Tag color={authentication === 1 ? 'green' : 'default'}>
+                    {authentication === 1 ? '已认证' : '未认证'}
+                </Tag>
             ),
         },
         {

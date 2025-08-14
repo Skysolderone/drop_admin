@@ -454,7 +454,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     };
 
     // 防抖翻译函数
-    const debouncedTranslateSwapReason = (sourceField: string, delay: number = 1500) => {
+    const debouncedTranslateSwapReason = (sourceField: string, delay: number = 1000) => {
         console.log('debouncedTranslateSwapReason called with:', sourceField);
         const key = `translate-${sourceField}`;
         
@@ -579,7 +579,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     };
 
     // 防抖翻译函数 - 代币简介
-    const debouncedTranslateDescription = (sourceField: string, delay: number = 1500) => {
+    const debouncedTranslateDescription = (sourceField: string, delay: number = 1000) => {
         console.log('debouncedTranslateDescription called with:', sourceField);
         const key = `translate-${sourceField}`;
         
@@ -590,7 +590,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
         
         // 设置新的定时器
         debounceTimersRef.current[key] = setTimeout(async () => {
-            const sourceValue = form.getFieldValue(sourceField);
+            // 将字符串路径转换为数组路径，例如 'description.en' -> ['description', 'en']
+            const fieldPath = sourceField.split('.');
+            const sourceValue = form.getFieldValue(fieldPath);
             console.log('Translation triggered for:', sourceField, 'value:', sourceValue);
             
             if (!sourceValue || !sourceValue.trim()) {
@@ -604,7 +606,8 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             
             // 检查其他字段是否有明显的用户手动输入内容（长文本或明显不同的内容）
             const hasSignificantContent = otherFields.some(field => {
-                const value = form.getFieldValue(field);
+                const fieldPath = field.split('.');
+                const value = form.getFieldValue(fieldPath);
                 if (!value || !value.trim()) return false;
                 
                 const trimmedValue = value.trim();
@@ -664,18 +667,23 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 // 将翻译结果填入对应字段（填入空白字段或短文本字段，认为短文本可能是之前的自动翻译）
                 const updateFields: Record<string, any> = {};
                 targetFields.forEach((field, index) => {
-                    const currentValue = form.getFieldValue(field);
+                    const fieldPath = field.split('.');
+                    const currentValue = form.getFieldValue(fieldPath);
                     console.log(`Checking field ${field}, current value:`, currentValue);
                     
                     // 允许更新的条件：空白字段 或 内容很短（可能是之前的自动翻译）
                     const shouldUpdate = !currentValue || 
                                        !currentValue.trim() || 
-                                       currentValue.trim().length <= 10; // 短于10个字符认为可以重新翻译
+                                       currentValue.trim().length <= 10; // 短于10个字符认为可能是之前的自动翻译
                     
                     if (shouldUpdate) {
                         const langName = targetLanguages[index];
                         if (translations[langName]) {
-                            updateFields[field] = translations[langName];
+                            // 构建嵌套对象结构，例如 description.zh-TW -> {description: {'zh-TW': value}}
+                            if (!updateFields[fieldPath[0]]) {
+                                updateFields[fieldPath[0]] = {};
+                            }
+                            updateFields[fieldPath[0]][fieldPath[1]] = translations[langName];
                             console.log(`Adding translation for ${field}: ${translations[langName]}`);
                         }
                     } else {
@@ -762,6 +770,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 isHot: iv.isHot != null ? iv.isHot : (isTrue(iv.hot_status) ? 'yes' : 'no'),
                 swapSupport: iv.swapSupport != null ? iv.swapSupport : (isFalse(iv.swap_status) ? 'no' : 'yes'),
                 airdropSupport: iv.airdropSupport != null ? iv.airdropSupport : (isTrue(iv.airdrop_status) ? 'yes' : 'no'),
+                authentication: iv.authentication != null ? Number(iv.authentication) : 0,
                 description,
             };
 
@@ -996,10 +1005,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                     </Row>
 
                     <div>
-                        <div className="ant-form-item-label"><label className="ant-form-item-required">代币简介 (多语言)</label></div>
+                        <div className="ant-form-item-label" style={{marginBottom:'10px'}}><label className="ant-form-item-required">代币简介 (多语言)</label></div>
                         <Row gutter={[16, 16]}>
                             <Col span={12}>
-                                <Form.Item name={['description', 'en']} rules={[{ required: true, message: '请填写英文简介' }]}>
+                                <Form.Item style={{marginBottom:'10px'}} name={['description', 'en']} rules={[{ required: true, message: '请填写英文简介' }]}>
                                     <TextArea 
                                         placeholder="请输入English代币简介" 
                                         autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1008,10 +1017,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (English) *</div>
+                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (English) <span style={{color:'#ff4d4f'}}>*</span></div>
                             </Col>
                             <Col span={12}>
-                                <Form.Item name={['description', 'zh-TW']}>
+                                <Form.Item style={{marginBottom:'10px'}} name={['description', 'zh-TW']}>
                                     <TextArea 
                                         placeholder="请输入繁體中文代币简介" 
                                         autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1020,10 +1029,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (繁體中文)</div>
+                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (繁體中文)</div>
                             </Col>
                             <Col span={12}>
-                                <Form.Item name={['description', 'ja']}>
+                                <Form.Item style={{marginBottom:'10px'}} name={['description', 'ja']}>
                                     <TextArea 
                                         placeholder="请输入日本語代币简介" 
                                         autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1032,10 +1041,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (日本語)</div>
+                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (日本語)</div>
                             </Col>
                             <Col span={12}>
-                                <Form.Item name={['description', 'hi']}>
+                                <Form.Item style={{marginBottom:'10px'}} name={['description', 'hi']}>
                                     <TextArea 
                                         placeholder="请输入हिन्दी代币简介" 
                                         autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1044,10 +1053,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (हिन्दी)</div>
+                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (हिन्दी)</div>
                             </Col>
                             <Col span={12}>
-                                <Form.Item name={['description', 'pl']}>
+                                <Form.Item style={{marginBottom:'10px'}} name={['description', 'pl']}>
                                     <TextArea 
                                         placeholder="请输入Polski代币简介" 
                                         autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1056,10 +1065,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (Polski)</div>
+                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (Polski)</div>
                             </Col>
                             <Col span={12}>
-                                <Form.Item name={['description', 'es']}>
+                                <Form.Item style={{marginBottom:'10px'}} name={['description', 'es']}>
                                     <TextArea 
                                         placeholder="请输入Español代币简介" 
                                         autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1068,10 +1077,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (Español)</div>
+                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (Español)</div>
                             </Col>
                             <Col span={12}>
-                                <Form.Item name={['description', 'pt']}>
+                                <Form.Item style={{marginBottom:'10px'}} name={['description', 'pt']}>
                                     <TextArea 
                                         placeholder="请输入Português代币简介" 
                                         autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1080,10 +1089,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (Português)</div>
+                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (Português)</div>
                             </Col>
                             <Col span={12}>
-                                <Form.Item name={['description', 'ms']}>
+                                <Form.Item style={{marginBottom:'10px'}} name={['description', 'ms']}>
                                     <TextArea 
                                         placeholder="请输入Bahasa Melayu代币简介" 
                                         autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1092,10 +1101,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (Bahasa Melayu)</div>
+                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (Bahasa Melayu)</div>
                             </Col>
                             <Col span={12}>
-                                <Form.Item name={['description', 'id']}>
+                                <Form.Item style={{marginBottom:'10px'}} name={['description', 'id']}>
                                     <TextArea 
                                         placeholder="请输入Bahasa Indonesia代币简介" 
                                         autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1104,10 +1113,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (Bahasa Indonesia)</div>
+                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (Bahasa Indonesia)</div>
                             </Col>
                             <Col span={12}>
-                                <Form.Item name={['description', 'ko']}>
+                                <Form.Item style={{marginBottom:'10px'}} name={['description', 'ko']}>
                                     <TextArea 
                                         placeholder="请输入한국어代币简介" 
                                         autoSize={{ minRows: 2, maxRows: 4 }}
@@ -1116,7 +1125,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2">简介 (한국어)</div>
+                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (한국어)</div>
                             </Col>
                         </Row>
                         <div className="text-sm text-blue-600 mt-1">英文简介为必填项。</div>
@@ -1139,32 +1148,17 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                         </Upload>
                     </Form.Item>
 
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item
-                                name="isPinned"
-                                label="是否置顶"
-                                initialValue="no"
-                            >
-                                <Radio.Group>
-                                    <Radio value="yes">是</Radio>
-                                    <Radio value="no">否</Radio>
-                                </Radio.Group>
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item
-                                name="isHot"
-                                label="是否Hot"
-                                initialValue="no"
-                            >
-                                <Radio.Group>
-                                    <Radio value="yes">是</Radio>
-                                    <Radio value="no">否</Radio>
-                                </Radio.Group>
-                            </Form.Item>
-                        </Col>
-                    </Row>
+                    <Form.Item
+                        name="authentication"
+                        label="是否认证"
+                        initialValue={0}
+                    >
+                        <Radio.Group>
+                            <Radio value={1}>已认证</Radio>
+                            <Radio value={0}>未认证</Radio>
+                        </Radio.Group>
+                    </Form.Item>
+
                 </div>
             ),
         },
@@ -1185,16 +1179,18 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                     </Form.Item>
 
                     {swapSupport === 'no' && (
-                        <div className="p-4  rounded-lg bg-gray-50">
+                        <div className="p-4 rounded-lg bg-gray-50">
                             <div className="text-sm text-gray-600 mb-3">请为不支持Swap的原因提供以下语言版本：</div>
-                            <Row gutter={[16, 16]}>
+                            <div style={{ maxHeight: '350px', overflowY: 'auto', paddingRight: '8px' }}>
+                                <Row gutter={[16, 16]}>
                                 <Col span={12}>
                                     <Form.Item
                                         name="swapReason_en"
                                         label="不支持原因 (English)"
                                     >
-                                        <Input 
+                                        <TextArea 
                                             placeholder="请输入不支持原因" 
+                                            autoSize={{ minRows: 2, maxRows: 4 }}
                                             onChange={() => {
                                                 debouncedTranslateSwapReason('swapReason_en');
                                             }}
@@ -1206,8 +1202,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_zh-TW"
                                         label="不支持原因 (繁體中文)"
                                     >
-                                        <Input 
+                                        <TextArea 
                                             placeholder="请输入不支持原因" 
+                                            autoSize={{ minRows: 2, maxRows: 4 }}
                                             onChange={() => {
                                                 debouncedTranslateSwapReason('swapReason_zh-TW');
                                             }}
@@ -1219,8 +1216,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_ja"
                                         label="不支持原因 (日本語)"
                                     >
-                                        <Input 
+                                        <TextArea 
                                             placeholder="请输入不支持原因" 
+                                            autoSize={{ minRows: 2, maxRows: 4 }}
                                             onChange={() => {
                                                 debouncedTranslateSwapReason('swapReason_ja');
                                             }}
@@ -1232,8 +1230,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_hi"
                                         label="不支持原因 (हिन्दी)"
                                     >
-                                        <Input 
+                                        <TextArea 
                                             placeholder="请输入不支持原因" 
+                                            autoSize={{ minRows: 2, maxRows: 4 }}
                                             onChange={() => {
                                                 debouncedTranslateSwapReason('swapReason_hi');
                                             }}
@@ -1245,8 +1244,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_pl"
                                         label="不支持原因 (Polski)"
                                     >
-                                        <Input 
+                                        <TextArea 
                                             placeholder="请输入不支持原因" 
+                                            autoSize={{ minRows: 2, maxRows: 4 }}
                                             onChange={() => {
                                                 debouncedTranslateSwapReason('swapReason_pl');
                                             }}
@@ -1258,8 +1258,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_es"
                                         label="不支持原因 (Español)"
                                     >
-                                        <Input 
+                                        <TextArea 
                                             placeholder="请输入不支持原因" 
+                                            autoSize={{ minRows: 2, maxRows: 4 }}
                                             onChange={() => {
                                                 debouncedTranslateSwapReason('swapReason_es');
                                             }}
@@ -1271,8 +1272,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_pt"
                                         label="不支持原因 (Português)"
                                     >
-                                        <Input 
+                                        <TextArea 
                                             placeholder="请输入不支持原因" 
+                                            autoSize={{ minRows: 2, maxRows: 4 }}
                                             onChange={() => {
                                                 debouncedTranslateSwapReason('swapReason_pt');
                                             }}
@@ -1284,8 +1286,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_ms"
                                         label="不支持原因 (Bahasa Melayu)"
                                     >
-                                        <Input 
+                                        <TextArea 
                                             placeholder="请输入不支持原因" 
+                                            autoSize={{ minRows: 2, maxRows: 4 }}
                                             onChange={() => {
                                                 debouncedTranslateSwapReason('swapReason_ms');
                                             }}
@@ -1297,8 +1300,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_id"
                                         label="不支持原因 (Bahasa Indonesia)"
                                     >
-                                        <Input 
+                                        <TextArea 
                                             placeholder="请输入不支持原因" 
+                                            autoSize={{ minRows: 2, maxRows: 4 }}
                                             onChange={() => {
                                                 debouncedTranslateSwapReason('swapReason_id');
                                             }}
@@ -1310,15 +1314,17 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_ko"
                                         label="不支持原因 (한국어)"
                                     >
-                                        <Input 
+                                        <TextArea 
                                             placeholder="请输入不支持原因" 
+                                            autoSize={{ minRows: 2, maxRows: 4 }}
                                             onChange={() => {
                                                 debouncedTranslateSwapReason('swapReason_ko');
                                             }}
                                         />
                                     </Form.Item>
                                 </Col>
-                            </Row>
+                                </Row>
+                            </div>
                             <Form.Item
                                 name="swapUrl"
                                 label="相关URL(可选)"
