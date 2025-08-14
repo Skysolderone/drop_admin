@@ -3,34 +3,46 @@ import { query } from '../config/database.js';
 
 
 const TokenList = {
-    list: async (pageIndex = 0, pageSize = 10, statusFilter = null) => {
+    list: async (pageIndex = 0, pageSize = 10, statusFilter = null, search = '') => {
         try {
             // 确保参数为正整数
             const safePageIndex = Math.max(0, parseInt(pageIndex) || 0);
             const safePageSize = Math.max(1, Math.min(100, parseInt(pageSize) || 10)); // 限制最大100条
             const offset = safePageIndex * safePageSize;
             
-            console.log(`Fetching tokens with pageIndex: ${safePageIndex}, pageSize: ${safePageSize}, offset: ${offset}, statusFilter: ${statusFilter}`);
+            console.log(`Fetching tokens with pageIndex: ${safePageIndex}, pageSize: ${safePageSize}, offset: ${offset}, statusFilter: ${statusFilter}, search: "${search}"`);
             
             // 构建WHERE条件
             let whereClause = '';
             const params = [];
+            const conditions = [];
             
+            // 状态过滤条件
             if (statusFilter === 'all') {
                 // All: 排除软删除的数据，显示正常数据（包括空字符串，但排除字符串"0"）
-                whereClause = 'WHERE (remark IS NULL OR remark != "0")';
+                conditions.push('(remark IS NULL OR remark != "0")');
             } else if (statusFilter === "Can't swap") {
                 // Can't swap: swap_status=0，排除软删除的数据
-                whereClause = 'WHERE swap_status = 0 AND (remark IS NULL OR remark != "0")';
+                conditions.push('swap_status = 0 AND (remark IS NULL OR remark != "0")');
             } else if (statusFilter === "Can't airdrop") {
                 // Can't airdrop: airdrop_status=0，排除软删除的数据
-                whereClause = 'WHERE airdrop_status = 0 AND (remark IS NULL OR remark != "0")';
+                conditions.push('airdrop_status = 0 AND (remark IS NULL OR remark != "0")');
             } else if (statusFilter === 'Invalid') {
                 // Invalid: 只显示remark为字符串"0"的记录（软删除的数据）
-                whereClause = 'WHERE remark = "0"';
+                conditions.push('remark = "0"');
             } else {
                 // 默认情况：排除软删除的数据
-                whereClause = 'WHERE (remark IS NULL OR remark != "0")';
+                conditions.push('(remark IS NULL OR remark != "0")');
+            }
+            
+            // 搜索条件：模糊查询token_name字段
+            if (search && search.trim()) {
+                conditions.push('token_name LIKE ?');
+                params.push(`%${search.trim()}%`);
+            }
+            
+            if (conditions.length > 0) {
+                whereClause = 'WHERE ' + conditions.join(' AND ');
             }
             
             const sql = `SELECT * FROM t_airdrop_token ${whereClause} ORDER BY create_at DESC LIMIT ${safePageSize} OFFSET ${offset}`;
@@ -72,32 +84,45 @@ const TokenList = {
         }
     },
 
-    count: async (statusFilter = null) => {
+    count: async (statusFilter = null, search = '') => {
         try {
             // 构建WHERE条件，与list方法保持一致
             let whereClause = '';
+            const params = [];
+            const conditions = [];
             
+            // 状态过滤条件
             if (statusFilter === 'all') {
                 // All: 排除软删除的数据，显示正常数据（包括空字符串，但排除字符串"0"）
-                whereClause = 'WHERE (remark IS NULL OR remark != "0")';
+                conditions.push('(remark IS NULL OR remark != "0")');
             } else if (statusFilter === "Can't swap") {
                 // Can't swap: swap_status=0，排除软删除的数据
-                whereClause = 'WHERE swap_status = 0 AND (remark IS NULL OR remark != "0")';
+                conditions.push('swap_status = 0 AND (remark IS NULL OR remark != "0")');
             } else if (statusFilter === "Can't airdrop") {
                 // Can't airdrop: airdrop_status=0，排除软删除的数据
-                whereClause = 'WHERE airdrop_status = 0 AND (remark IS NULL OR remark != "0")';
+                conditions.push('airdrop_status = 0 AND (remark IS NULL OR remark != "0")');
             } else if (statusFilter === 'Invalid') {
                 // Invalid: 只显示remark为字符串"0"的记录（软删除的数据）
-                whereClause = 'WHERE remark = "0"';
+                conditions.push('remark = "0"');
             } else {
                 // 默认情况：排除软删除的数据
-                whereClause = 'WHERE (remark IS NULL OR remark != "0")';
+                conditions.push('(remark IS NULL OR remark != "0")');
+            }
+            
+            // 搜索条件：模糊查询token_name字段
+            if (search && search.trim()) {
+                conditions.push('token_name LIKE ?');
+                params.push(`%${search.trim()}%`);
+            }
+            
+            if (conditions.length > 0) {
+                whereClause = 'WHERE ' + conditions.join(' AND ');
             }
             
             const sql = `SELECT COUNT(*) as total FROM t_airdrop_token ${whereClause}`;
-            console.log('执行计数 SQL:', sql);
+            console.log('执行计数 SQL:', sql, '参数:', params);
             
-            const result = await query(sql);
+            const result = await query(sql, params);
             return result[0]?.total || 0;
         } catch (error) {
             console.error('TokenList.count 错误:', error);

@@ -25,7 +25,7 @@ const Login: React.FC = () => {
         // 存储登录状态
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userInfo', JSON.stringify({ username: values.username }));
-        navigate('/');
+        navigate('/token-list');
       } else {
         message.error('用户名或密码错误！');
       }

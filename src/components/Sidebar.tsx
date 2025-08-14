@@ -7,7 +7,7 @@ type MenuItem = Required<MenuProps>['items'][number];
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
-  const [openKeys, setOpenKeys] = useState<string[]>(['token', 'setting']);
+  const [openKeys, setOpenKeys] = useState<string[]>(['token']);
 
   const items: MenuItem[] = [
     {
@@ -25,24 +25,6 @@ const Sidebar: React.FC = () => {
         {
           key: '/token-market',
           label: <Link to="/token-market">Token Market Info</Link>,
-        },
-      ],
-    },
-    {
-      key: 'setting',
-      label: 'Setting',
-      children: [
-        {
-          key: '/user-manage',
-          label: <Link to="/user-manage">User Manage</Link>,
-        },
-        {
-          key: '/role-manage',
-          label: <Link to="/role-manage">Role Manage</Link>,
-        },
-        {
-          key: '/menu-manage',
-          label: <Link to="/menu-manage">Menu Manage</Link>,
         },
       ],
     },

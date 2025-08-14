@@ -14,8 +14,8 @@ export const getAllTokens = async (req, res) => {
 
     // 并行获取数据和总数
     const [data_list, totalCount] = await Promise.all([
-      TokenList.list(pageIndex, pageSize, status),
-      TokenList.count(status)
+      TokenList.list(pageIndex, pageSize, status, search),
+      TokenList.count(status, search)
     ]);
     
     return application.create_response(res, {

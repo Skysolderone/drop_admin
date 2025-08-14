@@ -1,8 +1,61 @@
 import React, { useState } from 'react';
 import dayjs from 'dayjs';
 import { Modal, Form, Tabs, Row, Col, Input, Radio, Upload, Button, message, Card, DatePicker, Checkbox } from 'antd';
-import { UploadOutlined, CloseOutlined, WarningFilled } from '@ant-design/icons';
+import { UploadOutlined, CloseOutlined, WarningFilled, TranslationOutlined } from '@ant-design/icons';
 import api from '../lib/axios';
+
+// 导入翻译函数
+async function translateText(text, targetLanguages) {
+    const apiKey = "sk-cb616a0c850a4e0c93c84237e7034e59";
+    const apiUrl = "https://api.deepseek.com/v1/chat/completions";
+    const model = "deepseek-chat";
+
+    try {
+        const requests = targetLanguages.map(async (lang) => {
+            const messages = [
+                {
+                    role: "system",
+                    content:
+                        `你是专业的翻译引擎。请将用户提供的文本准确翻译为目标语言：${lang}。\n` +
+                        "要求：\n" +
+                        "1) 只输出译文，不要解释；\n" +
+                        "2) 保留专有名词和术语一致性；\n" +
+                        "3) 保留原文中的换行与基本格式；\n" +
+                        "4) 若原文已是目标语言，直接原样返回。",
+                },
+                {
+                    role: "user",
+                    content: text,
+                },
+            ];
+
+            const response = await api.post(
+                apiUrl,
+                {
+                    model,
+                    messages,
+                    temperature: 0.2,
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${apiKey}`,
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            const translated = response?.data?.choices?.[0]?.message?.content?.trim() ?? "";
+            return [lang, translated];
+        });
+
+        const pairs = await Promise.all(requests);
+        return Object.fromEntries(pairs);
+    } catch (error) {
+        const detail = error?.response?.data || error?.message || error;
+        console.error("翻译失败:", detail);
+        throw error;
+    }
+}
 
 const { TextArea } = Input;
 
@@ -141,6 +194,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     const [saving, setSaving] = useState(false);
     const [tokenPriceCache, setTokenPriceCache] = useState<Record<string, number>>({});
     const debounceTimersRef = React.useRef<Record<string, NodeJS.Timeout>>({});
+    const [translating, setTranslating] = useState(false);
     // Tabs 受控，防止某些环境下 TabHeader 使用 <a> 导致浏览器跳转
     const [activeTabKey, setActiveTabKey] = useState<'basic' | 'swap' | 'airdrop'>(defaultTabKey ?? 'basic');
     React.useEffect(() => {
@@ -397,6 +451,131 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
         setAddCountryCode('');
         setAddCountryName('');
         setAddCountryVisible(true);
+    };
+
+    // 防抖翻译函数
+    const debouncedTranslateSwapReason = (sourceField: string, delay: number = 1500) => {
+        console.log('debouncedTranslateSwapReason called with:', sourceField);
+        const key = `translate-${sourceField}`;
+        
+        // 清除之前的定时器
+        if (debounceTimersRef.current[key]) {
+            clearTimeout(debounceTimersRef.current[key]);
+        }
+        
+        // 设置新的定时器
+        debounceTimersRef.current[key] = setTimeout(async () => {
+            const sourceValue = form.getFieldValue(sourceField);
+            console.log('Translation triggered for:', sourceField, 'value:', sourceValue);
+            
+            if (!sourceValue || !sourceValue.trim()) {
+                console.log('No value to translate');
+                return;
+            }
+
+            // 智能检查：只有当其他字段的内容与当前输入源字段内容明显不同时，才跳过翻译
+            const langFields = ['swapReason_en', 'swapReason_zh-TW', 'swapReason_ja', 'swapReason_hi', 'swapReason_pl', 'swapReason_es', 'swapReason_pt', 'swapReason_ms', 'swapReason_id', 'swapReason_ko'];
+            const otherFields = langFields.filter(field => field !== sourceField);
+            
+            // 检查其他字段是否有明显的用户手动输入内容（长文本或明显不同的内容）
+            const hasSignificantContent = otherFields.some(field => {
+                const value = form.getFieldValue(field);
+                if (!value || !value.trim()) return false;
+                
+                const trimmedValue = value.trim();
+                const trimmedSource = sourceValue.trim();
+                
+                // 如果其他字段的内容与当前输入完全相同，说明可能是之前的自动翻译结果，可以重新翻译
+                if (trimmedValue.toLowerCase() === trimmedSource.toLowerCase()) return false;
+                
+                // 如果内容很短（≤10个字符），认为可能是自动翻译的结果，允许重新翻译
+                if (trimmedValue.length <= 10) return false;
+                
+                // 只有长文本（>10字符）且与源文本明显不同时，才认为是用户手动输入的重要内容
+                return trimmedValue.length > 10 && 
+                       Math.abs(trimmedValue.length - trimmedSource.length) > Math.max(trimmedSource.length * 0.5, 5);
+            });
+
+            console.log('Content check:', { 
+                sourceValue: sourceValue.trim(), 
+                hasSignificantContent,
+                otherFieldsValues: otherFields.map(field => ({ field, value: form.getFieldValue(field) }))
+            });
+
+            if (hasSignificantContent) {
+                console.log('Other fields have significant different content, skipping translation to preserve user input');
+                return; // 其他字段已有明显不同的内容，不进行自动翻译
+            }
+
+            setTranslating(true);
+            console.log('Starting translation process...');
+            
+            try {
+                // 语言代码映射
+                const langMap: Record<string, string> = {
+                    'swapReason_en': 'English',
+                    'swapReason_zh-TW': '繁體中文',
+                    'swapReason_ja': '日本語',
+                    'swapReason_hi': 'हिन्दी',
+                    'swapReason_pl': 'Polski',
+                    'swapReason_es': 'Español',
+                    'swapReason_pt': 'Português',
+                    'swapReason_ms': 'Bahasa Melayu',
+                    'swapReason_id': 'Bahasa Indonesia',
+                    'swapReason_ko': '한국어'
+                };
+
+                // 排除源语言，获取目标语言
+                const targetFields = Object.keys(langMap).filter(field => field !== sourceField);
+                const targetLanguages = targetFields.map(field => langMap[field]);
+
+                console.log('Target languages for translation:', targetLanguages);
+                console.log('Calling translateText with:', { sourceValue, targetLanguages });
+
+                const translations = await translateText(sourceValue, targetLanguages);
+                
+                console.log('Translation result:', translations);
+
+                // 将翻译结果填入对应字段（填入空白字段或短文本字段，认为短文本可能是之前的自动翻译）
+                const updateFields: Record<string, string> = {};
+                targetFields.forEach((field, index) => {
+                    const currentValue = form.getFieldValue(field);
+                    console.log(`Checking field ${field}, current value:`, currentValue);
+                    
+                    // 允许更新的条件：空白字段 或 内容很短（可能是之前的自动翻译）
+                    const shouldUpdate = !currentValue || 
+                                       !currentValue.trim() || 
+                                       currentValue.trim().length <= 10; // 短于10个字符认为可以重新翻译
+                    
+                    if (shouldUpdate) {
+                        const langName = targetLanguages[index];
+                        if (translations[langName]) {
+                            updateFields[field] = translations[langName];
+                            console.log(`Adding translation for ${field}: ${translations[langName]}`);
+                        }
+                    } else {
+                        console.log(`Skipping field ${field} due to existing content: ${currentValue}`);
+                    }
+                });
+
+                console.log('Fields to update:', updateFields);
+                
+                form.setFieldsValue(updateFields);
+                if (Object.keys(updateFields).length > 0) {
+                    message.success(`已自动翻译 ${Object.keys(updateFields).length} 种语言`);
+                    console.log('Translation completed successfully');
+                } else {
+                    console.log('No fields were updated (all target fields already have content)');
+                }
+            } catch (error: any) {
+                console.error('翻译失败:', error);
+                console.error('Error details:', error?.response?.data || error?.message || error);
+                message.error('自动翻译失败: ' + (error?.message || '未知错误'));
+            } finally {
+                setTranslating(false);
+                console.log('Translation process finished');
+            }
+        }, delay);
     };
 
     // 确认新增国家
@@ -829,7 +1008,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_en"
                                         label="不支持原因 (English)"
                                     >
-                                        <Input placeholder="请输入不支持原因" />
+                                        <Input 
+                                            placeholder="请输入不支持原因" 
+                                            onChange={() => {
+                                                debouncedTranslateSwapReason('swapReason_en');
+                                            }}
+                                        />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
@@ -837,7 +1021,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_zh-TW"
                                         label="不支持原因 (繁體中文)"
                                     >
-                                        <Input placeholder="请输入不支持原因" />
+                                        <Input 
+                                            placeholder="请输入不支持原因" 
+                                            onChange={() => {
+                                                debouncedTranslateSwapReason('swapReason_zh-TW');
+                                            }}
+                                        />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
@@ -845,7 +1034,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_ja"
                                         label="不支持原因 (日本語)"
                                     >
-                                        <Input placeholder="请输入不支持原因" />
+                                        <Input 
+                                            placeholder="请输入不支持原因" 
+                                            onChange={() => {
+                                                debouncedTranslateSwapReason('swapReason_ja');
+                                            }}
+                                        />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
@@ -853,7 +1047,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_hi"
                                         label="不支持原因 (हिन्दी)"
                                     >
-                                        <Input placeholder="请输入不支持原因" />
+                                        <Input 
+                                            placeholder="请输入不支持原因" 
+                                            onChange={() => {
+                                                debouncedTranslateSwapReason('swapReason_hi');
+                                            }}
+                                        />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
@@ -861,7 +1060,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_pl"
                                         label="不支持原因 (Polski)"
                                     >
-                                        <Input placeholder="请输入不支持原因" />
+                                        <Input 
+                                            placeholder="请输入不支持原因" 
+                                            onChange={() => {
+                                                debouncedTranslateSwapReason('swapReason_pl');
+                                            }}
+                                        />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
@@ -869,7 +1073,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_es"
                                         label="不支持原因 (Español)"
                                     >
-                                        <Input placeholder="请输入不支持原因" />
+                                        <Input 
+                                            placeholder="请输入不支持原因" 
+                                            onChange={() => {
+                                                debouncedTranslateSwapReason('swapReason_es');
+                                            }}
+                                        />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
@@ -877,7 +1086,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_pt"
                                         label="不支持原因 (Português)"
                                     >
-                                        <Input placeholder="请输入不支持原因" />
+                                        <Input 
+                                            placeholder="请输入不支持原因" 
+                                            onChange={() => {
+                                                debouncedTranslateSwapReason('swapReason_pt');
+                                            }}
+                                        />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
@@ -885,7 +1099,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_ms"
                                         label="不支持原因 (Bahasa Melayu)"
                                     >
-                                        <Input placeholder="请输入不支持原因" />
+                                        <Input 
+                                            placeholder="请输入不支持原因" 
+                                            onChange={() => {
+                                                debouncedTranslateSwapReason('swapReason_ms');
+                                            }}
+                                        />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
@@ -893,7 +1112,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_id"
                                         label="不支持原因 (Bahasa Indonesia)"
                                     >
-                                        <Input placeholder="请输入不支持原因" />
+                                        <Input 
+                                            placeholder="请输入不支持原因" 
+                                            onChange={() => {
+                                                debouncedTranslateSwapReason('swapReason_id');
+                                            }}
+                                        />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
@@ -901,7 +1125,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         name="swapReason_ko"
                                         label="不支持原因 (한국어)"
                                     >
-                                        <Input placeholder="请输入不支持原因" />
+                                        <Input 
+                                            placeholder="请输入不支持原因" 
+                                            onChange={() => {
+                                                debouncedTranslateSwapReason('swapReason_ko');
+                                            }}
+                                        />
                                     </Form.Item>
                                 </Col>
                             </Row>

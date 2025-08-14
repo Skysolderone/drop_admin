@@ -10,7 +10,6 @@ const About = React.lazy(() => import('../pages/About'));
 const Contact = React.lazy(() => import('../pages/Contact'));
 const TokenList = React.lazy(() => import('../pages/TokenList'));
 const TokenMarket = React.lazy(() => import('../pages/TokenMarket'));
-const UserManage = React.lazy(() => import('../pages/UserManage'));
 const Login = React.lazy(() => import('../pages/Login'));
 const NotFound = React.lazy(() => import('../pages/NotFound'));
 
@@ -73,14 +72,6 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LoadingSpinner />}>
             <TokenMarket />
-          </Suspense>
-        ),
-      },
-      {
-        path: 'user-manage',
-        element: (
-          <Suspense fallback={<LoadingSpinner />}>
-            <UserManage />
           </Suspense>
         ),
       },

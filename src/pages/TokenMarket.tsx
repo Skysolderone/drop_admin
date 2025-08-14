@@ -92,6 +92,9 @@ const TokenMarket: React.FC = () => {
       }
 
       const list: any[] = result.data?.tokens || [];
+      console.log('📊 前端接收到的数据:', list.length, '条');
+      console.log('📊 前端原始数据:', list);
+      
       const rows: MarketRow[] = list.map((t: any, idx: number) => ({
         key: t.id ?? `${(page - 1) * limit + idx}`,
         name: t.name || '-',
@@ -105,6 +108,7 @@ const TokenMarket: React.FC = () => {
         create_time: t.create_time || t.create_at || t.created_at || undefined,
       }));
 
+      console.log('📊 前端处理后的rows:', rows);
       setData(rows);
       setPagination({ current: Number(result.data.page) || page, pageSize: Number(result.data.limit) || limit, total: Number(result.data.total) || 0 });
     } catch (e: any) {
