@@ -18,7 +18,7 @@ type MarketRow = {
   price?: string | number | null;
   liq?: string | number | null; // Liquidity
   vol24?: string | number | null; // 24h Volume
-  pair?: string;
+  tokenCreate?: string;
   holders?: number | string | null;
   create_time?: string;
 };
@@ -50,28 +50,75 @@ const TokenMarket: React.FC = () => {
         width: 140,
         render: (v: any) => {
           if (v === null || v === undefined || v === '') return '-';
-          const priceStr = String(v);
           const numPrice = Number(v);
           
-          if (isNaN(numPrice)) return priceStr;
+          if (isNaN(numPrice)) return String(v);
           
-          // 对于非常小的价格值（小于0.0001），使用科学计数法
-          if (numPrice < 0.0001 && numPrice > 0) {
-            // 截取科学计数法的有效数字，不使用四舍五入
-            const expStr = numPrice.toExponential(20);
-            const [mantissa, exponent] = expStr.split('e');
-            const truncatedMantissa = mantissa.substring(0, 8); // 截取前8位
-            return `${truncatedMantissa}e${exponent}`;
+          if (numPrice === 0) {
+            return '0';
           }
           
-          // 对于正常价格值，直接截取字符串
-          if (priceStr.includes('.')) {
-            const [integer, decimal] = priceStr.split('.');
-            const truncatedDecimal = decimal.substring(0, 10); // 截取小数点后10位
-            return `${integer}.${truncatedDecimal}`;
+          if (numPrice > 0) {
+            // 对于极小的数值，使用科学计数法来获取精确的字符串表示
+            let priceStr = numPrice.toString();
+            
+            // 如果是科学计数法格式，需要转换
+            if (priceStr.includes('e')) {
+              // 使用更高精度来处理
+              priceStr = numPrice.toFixed(20).replace(/\.?0+$/, '');
+            } else {
+              priceStr = numPrice.toFixed(10).replace(/\.?0+$/, '');
+            }
+            
+            // 如果结果是'0'，说明数值太小，使用科学计数法的字符串
+            if (priceStr === '0') {
+              priceStr = numPrice.toString();
+              // 如果原始字符串也是0或科学计数法但实际为0，直接返回'0'
+              if (priceStr === '0' || /^0(\.0+)?e?[\+\-]?\d*$/i.test(priceStr)) {
+                return '0';
+              }
+            }
+            
+            // 检查是否有小数部分且以0开头
+            if (priceStr.includes('.') && priceStr.split('.')[1].startsWith('0')) {
+              const [integer, decimal] = priceStr.split('.');
+              
+              // 如果小数部分全是0，直接返回整数部分
+              if (/^0+$/.test(decimal)) {
+                return integer;
+              }
+              
+              // 计算连续的0的数量
+              let zeroCount = 0;
+              for (let i = 0; i < decimal.length; i++) {
+                if (decimal[i] === '0') {
+                  zeroCount++;
+                } else {
+                  break;
+                }
+              }
+              
+              if (zeroCount > 2) {
+                // 生成下标数字
+                const subscriptDigits = {
+                  '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+                  '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉'
+                };
+                const subscriptCount = zeroCount.toString().split('').map(d => subscriptDigits[d]).join('');
+                const remainingDigits = decimal.substring(zeroCount);
+                
+                return (
+                  <span>
+                    {integer}.0{subscriptCount}{remainingDigits}
+                  </span>
+                );
+              }
+            }
+            
+            return priceStr;
           }
           
-          return priceStr;
+          return String(v);
         },
       },
       {
@@ -88,7 +135,7 @@ const TokenMarket: React.FC = () => {
         width: 160,
         render: (v: any) => (v === null || v === undefined || v === '' ? '-' : v),
       },
-      { title: 'Pair', dataIndex: 'pair', key: 'pair', width: 140, ellipsis: true },
+      { title: 'tokenCreate', dataIndex: 'tokenCreate', key: 'tokenCreate', width: 140, ellipsis: true },
       { title: 'Holders', dataIndex: 'holders', key: 'holders', width: 120 },
       {
         title: 'Create_time',
@@ -131,7 +178,7 @@ const TokenMarket: React.FC = () => {
         price: t.price,
         liq: t.liq ?? t.liquidity ?? undefined,
         vol24: t.vol24 ?? t.volume_24h ?? t.volume24h ?? undefined,
-        pair: t.pair || t.pair_symbol || undefined,
+        tokenCreate: t.token_create_at ? new Date(t.token_create_at).toLocaleString() : (t.pair_symbol || undefined),
         holders: t.holders ?? t.holder_count ?? undefined,
         create_time: t.create_time || t.create_at || t.created_at || undefined,
       }));

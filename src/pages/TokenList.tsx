@@ -4,17 +4,8 @@ import { ExclamationCircleOutlined } from '@ant-design/icons';
 import api from '../lib/axios';
 import AddTokenModal from '../components/AddTokenModal';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
+import { getImageUrl } from '../assets/constants';
 
-// 工具函数：获取完整的图片URL
-const getImageUrl = (path: string) => {
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    if (path.startsWith('/')) {
-        // 由于Vite代理配置，直接使用相对路径即可
-        return path;
-    }
-    return path;
-};
 
 // 工具函数：地址加密显示（前4位后6位正常显示，中间用...替换）
 const formatAddress = (address: string) => {
@@ -82,6 +73,7 @@ const TokenList: React.FC = () => {
                     swapStatus: Number(token.swap_status) !== 0 && token.swap_support !== 'no',
                     airdropStatus: Number(token.airdrop_status) === 1 || token.airdrop_support === 'yes',
                     authentication: Number(token.authentication) || 0,
+                    remark: token.remark !== undefined ? token.remark : (token.remark === 0 ? 0 : ''),
                     ...token
                 }));
 
@@ -275,6 +267,7 @@ const TokenList: React.FC = () => {
             width: 80,
             render: (logo: string) => {
                 const imageUrl = getImageUrl(logo);
+                console.log('Original logo:', logo, 'Generated imageUrl:', imageUrl); // 调试日志
                 if (imageUrl) {
                     return (
                         <div style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -283,8 +276,18 @@ const TokenList: React.FC = () => {
                                 alt="token logo" 
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                 onError={(e) => {
-                                    (e.target as HTMLImageElement).style.display = 'none';
-                                    (e.target as HTMLImageElement).parentElement!.innerHTML = '📷';
+                                    console.log('Image load error for:', imageUrl); // 调试日志
+                                    const img = e.target as HTMLImageElement;
+                                    // 如果是本地路径失败，尝试使用外部CDN
+                                    if (logo && logo.startsWith('/') && !img.src.includes('img.dropwallet.world')) {
+                                        const cdnUrl = `https://img.dropwallet.world${logo}`;
+                                        console.log('Trying CDN URL:', cdnUrl);
+                                        img.src = cdnUrl;
+                                        return;
+                                    }
+                                    // 最终失败，显示占位符
+                                    img.style.display = 'none';
+                                    img.parentElement!.innerHTML = '📷';
                                 }}
                             />
                         </div>
@@ -329,35 +332,6 @@ const TokenList: React.FC = () => {
             ),
         },
         {
-            title: 'Price',
-            dataIndex: 'price',
-            key: 'price',
-            width: 120,
-            render: (price: string | number) => {
-                if (!price || Number(price) === 0) return '-';
-                const priceStr = String(price);
-                
-                // 对于非常小的价格值（小于0.0001），使用科学计数法
-                const numPrice = Number(price);
-                if (numPrice < 0.0001 && numPrice > 0) {
-                    // 截取科学计数法的有效数字，不使用四舍五入
-                    const expStr = numPrice.toExponential(20);
-                    const [mantissa, exponent] = expStr.split('e');
-                    const truncatedMantissa = mantissa.substring(0, 8); // 截取前8位
-                    return `${truncatedMantissa}e${exponent}`;
-                }
-                
-                // 对于正常价格值，直接截取字符串
-                if (priceStr.includes('.')) {
-                    const [integer, decimal] = priceStr.split('.');
-                    const truncatedDecimal = decimal.substring(0, 8); // 截取小数点后8位
-                    return `${integer}.${truncatedDecimal}`;
-                }
-                
-                return priceStr;
-            },
-        },
-        {
             title: 'Authentication',
             dataIndex: 'authentication',
             key: 'authentication',
@@ -367,6 +341,20 @@ const TokenList: React.FC = () => {
                     {authentication === 1 ? '已认证' : '未认证'}
                 </Tag>
             ),
+        },
+        {
+            title: 'Invalid',
+            dataIndex: 'remark',
+            key: 'invalid',
+            width: 100,
+            render: (remark: string | number) => {
+                const isInvalid = remark === 0 || remark === '0';
+                return (
+                    <Tag color={isInvalid ? 'red' : 'green'}>
+                        {isInvalid ? '失效' : '有效'}
+                    </Tag>
+                );
+            },
         },
         {
             title: 'Swap Status',

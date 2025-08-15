@@ -43,8 +43,8 @@ export const getAllTokens = async (req, res) => {
       // 来自池子表的字段
       liq: token.pool_liquidity_usd || null,        // liquidity_usd -> LIQ
       vol24: token.pool_volume_24h || null,         // volume_24h -> Volume (24h)
-      pair: null,                                   // 池子表中没有这个字段
-      holders: null                                 // 池子表中没有这个字段
+      token_create_at: token.token_create_at || null,                 // 
+      holders: token.holders || null                                 // 
     }));
     
     return application.create_response(res, {
