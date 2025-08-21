@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, Typography, message } from 'antd';
+import { Form, Input, Button, Card, Typography, message, Alert } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/axios';
 
@@ -12,10 +12,13 @@ interface LoginForm {
 
 const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string>('');
+  const [failedAttempts, setFailedAttempts] = useState(0);
   const navigate = useNavigate();
 
   const onFinish = async (values: LoginForm) => {
     setLoading(true);
+    setLoginError(''); // 清除之前的错误信息
     try {
       // 调用真实的登录接口
       const response = await api.post('/api/auth/login', {
@@ -25,6 +28,7 @@ const Login: React.FC = () => {
 
       if (response.data?.success) {
         message.success('登录成功！');
+        setFailedAttempts(0); // 重置失败次数
         
         // 存储登录状态和用户信息
         localStorage.setItem('isLoggedIn', 'true');
@@ -38,11 +42,49 @@ const Login: React.FC = () => {
         
         navigate('/token-list');
       } else {
-        message.error(response.data?.message || '登录失败');
+        const errorMsg = response.data?.message || '登录失败';
+        setLoginError(errorMsg);
+        setFailedAttempts(prev => prev + 1);
+        message.error(errorMsg);
       }
     } catch (error: any) {
       console.error('登录错误:', error);
-      const errorMessage = error.response?.data?.message || error.message || '登录失败，请稍后重试！';
+      
+      let errorMessage = '登录失败，请稍后重试！';
+      
+      if (error.response) {
+        const status = error.response.status;
+        const responseMessage = error.response.data?.message;
+        
+        switch (status) {
+          case 401:
+            errorMessage = responseMessage || '用户名或密码错误，请检查后重试';
+            break;
+          case 403:
+            errorMessage = '账户被禁用，请联系管理员';
+            break;
+          case 429:
+            errorMessage = '登录尝试过于频繁，请稍后再试';
+            break;
+          case 500:
+            errorMessage = '服务器内部错误，请稍后重试';
+            break;
+          case 502:
+          case 503:
+          case 504:
+            errorMessage = '服务暂时不可用，请稍后重试';
+            break;
+          default:
+            errorMessage = responseMessage || `登录失败 (错误代码: ${status})`;
+        }
+      } else if (error.request) {
+        errorMessage = '网络连接失败，请检查网络后重试';
+      } else {
+        errorMessage = error.message || '登录过程中发生未知错误';
+      }
+      
+      setLoginError(errorMessage);
+      setFailedAttempts(prev => prev + 1);
       message.error(errorMessage);
     } finally {
       setLoading(false);
@@ -90,6 +132,23 @@ const Login: React.FC = () => {
             </Title>
             <p style={{ color: '#6b7280' }}>请登录您的管理员账户</p>
           </div>
+
+          {/* 错误提示 */}
+          {loginError && (
+            <Alert
+              message={loginError}
+              type="error"
+              showIcon
+              style={{ marginBottom: '1rem' }}
+              action={
+                failedAttempts >= 3 && (
+                  <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                    登录失败 {failedAttempts} 次，请检查用户名和密码
+                  </div>
+                )
+              }
+            />
+          )}
 
           <Form
             name="login"

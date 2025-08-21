@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import dayjs from 'dayjs';
-import { Modal, Form, Tabs, Row, Col, Input, Radio, Upload, Button, message, Card, DatePicker, Checkbox } from 'antd';
+import { Modal, Form, Tabs, Row, Col, Input, Radio, Upload, Button, message, Card, DatePicker, Checkbox, Image } from 'antd';
 import { UploadOutlined, CloseOutlined, WarningFilled, TranslationOutlined } from '@ant-design/icons';
 import api from '../lib/axios';
+import { getImageUrl } from '../assets/constants';
 
 // 导入翻译函数
-async function translateText(text, targetLanguages) {
+async function translateText(text: any, targetLanguages: any) {
     const apiKey = "sk-cb616a0c850a4e0c93c84237e7034e59";
     const apiUrl = "https://api.deepseek.com/v1/chat/completions";
     const model = "deepseek-chat";
 
     try {
-        const requests = targetLanguages.map(async (lang) => {
+        const requests = targetLanguages.map(async (lang:any) => {
             const messages = [
                 {
                     role: "system",
@@ -222,7 +223,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     const ALL_COUNTRY_CODES = ALL_COUNTRIES.map(c => c.code);
 
 
-    // antd Upload 的表单绑定转换
+    // antd Upload 的表单绑定转换  
     const normFile = (e: any) => {
         if (Array.isArray(e)) return e;
         return e?.fileList ?? [];
@@ -239,23 +240,21 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             file?.url ||
             file?.thumbUrl;
 
-        // 处理相对路径，由于有Vite代理配置，直接使用相对路径即可
-        if (url && !/^https?:\/\//i.test(url)) {
-            if (!url.startsWith('/')) url = `/${url}`;
-            // 统一路径格式
-            url = url.replace(/^\/uploadsurlpic\//i, '/uploadurlpic/');
+        // 使用统一的图片URL处理函数
+        if (url) {
+            return getImageUrl(url);
         }
 
         // 最后回退：本地文件预览
-        if (!url && file?.originFileObj) {
+        if (file?.originFileObj) {
             try {
-                url = URL.createObjectURL(file.originFileObj);
+                return URL.createObjectURL(file.originFileObj);
             } catch {
                 // 忽略错误
             }
         }
 
-        return url;
+        return undefined;
     };
 
     // 自动获取代币价格
@@ -326,8 +325,15 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     };
 
     const handleSave = async () => {
+        setSaving(true);
         try {
+            // 显示验证中的提示
+            const hideLoading = message.loading('正在验证表单数据...', 0);
+            
             const values = await form.validateFields();
+            
+            // 验证成功，隐藏loading提示
+            hideLoading();
 
             // 统一标准化输出，贴近旧项目逻辑
             const output: any = { ...values };
@@ -386,6 +392,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                         openingStatus: m.openingStatus ?? 'enable',
                         url: m.url,
                         rank: m.rank !== undefined ? Number(m.rank) : undefined,
+                        priority: m.priority !== undefined ? Number(m.priority) : undefined,
                         amountPerDay: m.amountPerDay !== undefined ? Number(m.amountPerDay) : undefined,
                         valuePerDay: m.valuePerDay !== undefined ? Number(m.valuePerDay) : undefined,
                         countriesAll: isAll,
@@ -417,14 +424,48 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             }
         } catch (error) {
             console.error('Validation failed:', error);
+            // 隐藏验证loading提示
+            try {
+                message.destroy();
+            } catch (e) {
+                // ignore
+            }
+            
             // 表单验证失败时，滚动到第一个错误字段
             if (error && typeof error === 'object' && 'errorFields' in error) {
                 const errorFields = (error as any).errorFields;
                 if (Array.isArray(errorFields) && errorFields.length > 0) {
-                    message.error(`请检查必填字段：${errorFields.map((f: any) => f.errors?.join('，')).filter(Boolean).join('；')}`);
+                    // 生成更友好的错误提示
+                    const fieldLabels: { [key: string]: string } = {
+                        'tokenName': '代币名称',
+                        'tokenSymbol': '代币符号',
+                        'tokenLogo': '代币Logo',
+                        'description_en': '英文简介',
+                        'swapReason_en': '无法兑换原因',
+                        'airdropMethods': '空投方法'
+                    };
+                    
+                    const errorMessages = errorFields.map((field: any) => {
+                        const fieldName = Array.isArray(field.name) ? field.name.join('.') : field.name?.[0] || '未知字段';
+                        const friendlyName = fieldLabels[fieldName] || fieldName;
+                        const errors = Array.isArray(field.errors) ? field.errors.join('，') : '该字段为必填项';
+                        return `${friendlyName}: ${errors}`;
+                    }).filter(Boolean);
+                    
+                    message.error(`请完善以下信息：${errorMessages.join('；')}`);
+                    
+                    // 滚动到第一个错误字段
+                    setTimeout(() => {
+                        const firstErrorField = document.querySelector('.ant-form-item-has-error');
+                        if (firstErrorField) {
+                            firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }, 100);
+                } else {
+                    message.error('请检查必填字段是否已正确填写');
                 }
             } else {
-                message.error('表单验证失败，请检查必填字段');
+                message.error('表单验证失败，请检查必填字段是否已正确填写');
             }
         } finally {
             setSaving(false);
@@ -771,6 +812,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 swapSupport: iv.swapSupport != null ? iv.swapSupport : (isFalse(iv.swap_status) ? 'no' : 'yes'),
                 airdropSupport: iv.airdropSupport != null ? iv.airdropSupport : (isTrue(iv.airdrop_status) ? 'yes' : 'no'),
                 authentication: iv.authentication != null ? Number(iv.authentication) : 0,
+                remark: iv.remark != null ? Number(iv.remark) : 1, // 默认为1（有效），0为失效
                 description,
             };
 
@@ -792,7 +834,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 const cur = form.getFieldValue('tokenLogo');
                 if (!cur || (Array.isArray(cur) && cur.length === 0)) {
                     form.setFieldsValue({
-                        tokenLogo: [{ uid: '-1', name: 'logo.png', status: 'done', url: iv.logo }]
+                        tokenLogo: [{ uid: '-1', name: 'logo.png', status: 'done', url: getImageUrl(iv.logo) }]
                     });
                 }
             }
@@ -848,13 +890,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                             ? rawCountries.map((c: any) => c?.code).filter(Boolean)
                             : rawCountries;
                         const devicesArr = Array.isArray(m?.devices) && m.devices.length > 0 ? m.devices : ['android', 'ios'];
-                        // Upload fileList：标准化 URL，补 '/' 并兼容旧前缀
-                        let img = m?.imageUrl as string | undefined;
-                        if (img && !/^https?:\/\//i.test(img)) {
-                            if (!img.startsWith('/')) img = `/${img}`;
-                            img = img.replace(/^\/uploadsurlpic\//i, '/uploadurlpic/');
-                        }
-                        const fileList = img ? [{ uid: `img-${idx}`, name: 'image.png', status: 'done', url: img }] : [];
+                        // Upload fileList：使用统一的图片URL处理
+                        const img = m?.imageUrl;
+                        const processedImgUrl = img ? getImageUrl(img) : undefined;
+                        const fileList = processedImgUrl ? [{ uid: `img-${idx}`, name: 'image.png', status: 'done', url: processedImgUrl }] : [];
                         // DatePicker 值
                         const offlineVal = m?.offlineDate ? dayjs(m.offlineDate) : undefined;
                         return {
@@ -862,6 +901,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                             url: m?.url ?? '',
                             image: fileList,
                             rank: m?.rank ?? undefined,
+                            priority: m?.priority ?? undefined,
                             amountPerDay: m?.amountPerDay ?? undefined,
                             valuePerDay: m?.valuePerDay ?? undefined,
                             countries: countriesArr,
@@ -1126,7 +1166,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                     />
                                 </Form.Item>
                                 <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (한국어)</div>
-                            </Col>
+                            </Col> 
                         </Row>
                         <div className="text-sm text-blue-600 mt-1">英文简介为必填项。</div>
                     </div>
@@ -1141,23 +1181,105 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                         <Upload
                             {...uploadProps}
                             maxCount={1}
-                            listType="picture"
+                            listType="text"
+                            showUploadList={false}
                             accept="image/*"
                         >
                             <Button icon={<UploadOutlined />}>选择文件</Button>
                         </Upload>
                     </Form.Item>
+                    
+                    {/* Token Logo 预览区域 */}
+                    <Form.Item noStyle shouldUpdate>
+                        {({ getFieldValue }) => {
+                            const fileList = getFieldValue('tokenLogo') || [];
+                            const file = fileList[0];
+                            const url = getImagePreviewUrl(file);
 
-                    <Form.Item
-                        name="authentication"
-                        label="是否认证"
-                        initialValue={0}
-                    >
-                        <Radio.Group>
-                            <Radio value={1}>已认证</Radio>
-                            <Radio value={0}>未认证</Radio>
-                        </Radio.Group>
+                            return url ? (
+                                <div style={{ marginBottom: 24 }}>
+                                    <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Logo预览:</div>
+                                    <div
+                                        style={{
+                                            width: 80,
+                                            height: 80,
+                                            borderRadius: '8px',
+                                            border: '1px solid #d9d9d9',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            overflow: 'hidden',
+                                            background: '#fff',
+                                        }}
+                                    >
+                                        <Image
+                                            src={url}
+                                            alt="Logo预览"
+                                            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'pointer' }}
+                                            preview={{
+                                                mask: <div style={{ fontSize: '12px' }}>点击放大</div>,
+                                                src: (() => {
+                                                    // 为预览模式生成备用URL
+                                                    const originalUrl = file?.response?.data?.url || file?.url;
+                                                    if (originalUrl && originalUrl.startsWith('/')) {
+                                                        return `https://img.dropwallet.world${originalUrl}`;
+                                                    }
+                                                    return url;
+                                                })()
+                                            }}
+                                            onError={(e) => {
+                                                console.error('Logo加载失败:', url);
+                                                const img = e.target as HTMLImageElement;
+                                                const originalUrl = file?.response?.data?.url || file?.url;
+                                                
+                                                // 如果是本地路径失败，尝试使用外部CDN
+                                                if (originalUrl && originalUrl.startsWith('/') && !img.src.includes('img.dropwallet.world')) {
+                                                    const cdnUrl = `https://img.dropwallet.world${originalUrl}`;
+                                                    console.log('重试Logo CDN URL:', cdnUrl);
+                                                    img.src = cdnUrl;
+                                                    return;
+                                                }
+                                                
+                                                // 最终失败，显示错误信息
+                                                img.style.display = 'none';
+                                                const parent = img.parentElement;
+                                                if (parent) {
+                                                    parent.innerHTML = '<span style="color: #999">Logo加载失败</span>';
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            ) : null;
+                        }}
                     </Form.Item>
+
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item
+                                name="authentication"
+                                label="是否认证"
+                                initialValue={0}
+                            >
+                                <Radio.Group>
+                                    <Radio value={1}>已认证</Radio>
+                                    <Radio value={0}>未认证</Radio>
+                                </Radio.Group>
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item
+                                name="remark"
+                                label="是否失效"
+                                initialValue={1}
+                            >
+                                <Radio.Group>
+                                    <Radio value={0}>失效</Radio>
+                                    <Radio value={1}>有效</Radio>
+                                </Radio.Group>
+                            </Form.Item>
+                        </Col>
+                    </Row>
 
                 </div>
             ),
@@ -1373,10 +1495,6 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                     </Form.Item>
                                 </Col>
                             </Row>
-                            <div className="text-xs text-gray-500" style={{ marginTop: -8, marginBottom: 4 }}>Click to input priority rank (1-999)</div>
-                            <Form.Item name="priority" label="Priority">
-                                <Input type="number" min={1} max={999} placeholder="" />
-                            </Form.Item>
                         </>
                     )}
 
@@ -1471,14 +1589,39 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                                                             }}
                                                                         >
                                                                             {url ? (
-                                                                                <img
+                                                                                <Image
                                                                                     src={url}
                                                                                     alt="预览"
-                                                                                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                                                                                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'pointer' }}
+                                                                                    preview={{
+                                                                                        mask: <div style={{ fontSize: '12px' }}>点击放大</div>,
+                                                                                        src: (() => {
+                                                                                            // 为预览模式生成备用URL
+                                                                                            const file = getFieldValue(['airdropMethods', field.name, 'image'])?.[0];
+                                                                                            const originalUrl = file?.response?.data?.url || file?.url;
+                                                                                            if (originalUrl && originalUrl.startsWith('/')) {
+                                                                                                return `https://img.dropwallet.world${originalUrl}`;
+                                                                                            }
+                                                                                            return url;
+                                                                                        })()
+                                                                                    }}
                                                                                     onError={(e) => {
                                                                                         console.error('图片加载失败:', url);
-                                                                                        (e.target as HTMLImageElement).style.display = 'none';
-                                                                                        const parent = (e.target as HTMLImageElement).parentElement;
+                                                                                        const img = e.target as HTMLImageElement;
+                                                                                        const file = getFieldValue(['airdropMethods', field.name, 'image'])?.[0];
+                                                                                        const originalUrl = file?.response?.data?.url || file?.url;
+                                                                                        
+                                                                                        // 如果是本地路径失败，尝试使用外部CDN
+                                                                                        if (originalUrl && originalUrl.startsWith('/') && !img.src.includes('img.dropwallet.world')) {
+                                                                                            const cdnUrl = `https://img.dropwallet.world${originalUrl}`;
+                                                                                            console.log('重试CDN URL:', cdnUrl);
+                                                                                            img.src = cdnUrl;
+                                                                                            return;
+                                                                                        }
+                                                                                        
+                                                                                        // 最终失败，显示错误信息
+                                                                                        img.style.display = 'none';
+                                                                                        const parent = img.parentElement;
                                                                                         if (parent) {
                                                                                             parent.innerHTML = '<span style="color: #999">图片加载失败</span>';
                                                                                         }
@@ -1501,6 +1644,17 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                                                 fieldKey={[field.fieldKey!, 'rank']}
                                                                 label="Rank"
                                                                 rules={[{ required: true, message: '请输入Rank' }]}
+                                                            >
+                                                                <Input type="number" min={1} max={999} placeholder="1-999" />
+                                                            </Form.Item>
+                                                        </Col>
+                                                        <Col span={12}>
+                                                            <Form.Item
+                                                                {...restField}
+                                                                name={[field.name, 'priority']}
+                                                                fieldKey={[field.fieldKey!, 'priority']}
+                                                                label="Priority"
+                                                                rules={[{ required: true, message: '请输入Priority' }]}
                                                             >
                                                                 <Input type="number" min={1} max={999} placeholder="1-999" />
                                                             </Form.Item>

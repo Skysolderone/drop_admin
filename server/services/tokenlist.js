@@ -264,6 +264,7 @@ const TokenList = {
                                 img_url = m.image;
                             }
                             const rankVal = Number(m?.rank ?? 0) || 0;
+                            const priorityVal = Number(m?.priority ?? 0) || 0;
                             const amountDay = Number(m?.amountPerDay ?? 0) || 0;
                             const valueDay = Number(m?.valuePerDay ?? 0) || 0;
                             const countries = Array.isArray(m?.countries) ? JSON.stringify(m.countries) : JSON.stringify([]);
@@ -272,7 +273,7 @@ const TokenList = {
                             const tokenStatus = m?.oneOffStatus === 'enable' ? 1 : 0;
                             const remarkVal = (m?.remark ?? '').toString();
 
-                            placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                            placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                             // id 使用 null（自增），其余字段按列顺序写入
                             vals.push(
                                 null, // id (auto-increment)
@@ -281,6 +282,7 @@ const TokenList = {
                                 url,
                                 img_url,
                                 rankVal,
+                                priorityVal,
                                 amountDay,
                                 valueDay,
                                 countries,
@@ -293,7 +295,7 @@ const TokenList = {
                             );
                         }
                         if (placeholders.length > 0) {
-                            const sqlImgs = `INSERT INTO t_airdrop_imgs (\`id\`, \`token_id\`, \`status\`, \`url\`, \`img_url\`, \`rank\`, \`amount_day\`, \`value_day\`, \`countries\`, \`device_support\`, \`offline_date\`, \`token_status\`, \`remark\`, \`create_at\`, \`update_at\`) VALUES ${placeholders.join(', ')}`;
+                            const sqlImgs = `INSERT INTO t_airdrop_imgs (\`id\`, \`token_id\`, \`status\`, \`url\`, \`img_url\`, \`rank\`, \`priority\`, \`amount_day\`, \`value_day\`, \`countries\`, \`device_support\`, \`offline_date\`, \`token_status\`, \`remark\`, \`create_at\`, \`update_at\`) VALUES ${placeholders.join(', ')}`;
                             console.log('写入 t_airdrop_imgs SQL:', sqlImgs, '参数长度:', vals.length);
                             await query(sqlImgs, vals);
                         }
@@ -334,6 +336,7 @@ const TokenList = {
                     url: r.url || '',
                     imageUrl: r.img_url || '',
                     rank: r.rank || 0,
+                    priority: r.priority || 0,
                     amountPerDay: r.amount_day || 0,
                     valuePerDay: r.value_day || 0,
                     countries: (() => { try { return JSON.parse(r.countries || '[]'); } catch { return []; } })(),
@@ -487,6 +490,7 @@ const TokenList = {
                                         img_url = m.image;
                                     }
                                     const rankVal = Number(m?.rank ?? 0) || 0;
+                                    const priorityVal = Number(m?.priority ?? 0) || 0;
                                     const amountDay = Number(m?.amountPerDay ?? 0) || 0;
                                     const valueDay = Number(m?.valuePerDay ?? 0) || 0;
                                     const countries = Array.isArray(m?.countries) ? JSON.stringify(m.countries) : JSON.stringify([]);
@@ -495,7 +499,7 @@ const TokenList = {
                                     const tokenStatus = m?.oneOffStatus === 'enable' ? 1 : 0;
                                     const remarkVal = (m?.remark ?? '').toString();
 
-                                    placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                                    placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                                     vals.push(
                                         null,
                                         tokenId,
@@ -503,6 +507,7 @@ const TokenList = {
                                         url,
                                         img_url,
                                         rankVal,
+                                        priorityVal,
                                         amountDay,
                                         valueDay,
                                         countries,
@@ -514,7 +519,7 @@ const TokenList = {
                                         now
                                     );
                                 }
-                                const sqlImgs = `INSERT INTO t_airdrop_imgs (\`id\`, \`token_id\`, \`status\`, \`url\`, \`img_url\`, \`rank\`, \`amount_day\`, \`value_day\`, \`countries\`, \`device_support\`, \`offline_date\`, \`token_status\`, \`remark\`, \`create_at\`, \`update_at\`) VALUES ${placeholders.join(', ')}`;
+                                const sqlImgs = `INSERT INTO t_airdrop_imgs (\`id\`, \`token_id\`, \`status\`, \`url\`, \`img_url\`, \`rank\`, \`priority\`, \`amount_day\`, \`value_day\`, \`countries\`, \`device_support\`, \`offline_date\`, \`token_status\`, \`remark\`, \`create_at\`, \`update_at\`) VALUES ${placeholders.join(', ')}`;
                                 console.log('更新 t_airdrop_imgs SQL:', sqlImgs, '参数长度:', vals.length);
                                 await query(sqlImgs, vals);
                             }
