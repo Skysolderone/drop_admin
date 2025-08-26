@@ -9,14 +9,14 @@ const TokenList = {
             const safePageIndex = Math.max(0, parseInt(pageIndex) || 0);
             const safePageSize = Math.max(1, Math.min(100, parseInt(pageSize) || 10)); // 限制最大100条
             const offset = safePageIndex * safePageSize;
-            
+
             console.log(`Fetching tokens with pageIndex: ${safePageIndex}, pageSize: ${safePageSize}, offset: ${offset}, statusFilter: ${statusFilter}, search: "${search}"`);
-            
+
             // 构建WHERE条件
             let whereClause = '';
             const params = [];
             const conditions = [];
-            
+
             // 状态过滤条件
             if (statusFilter === 'all') {
                 // All: 排除软删除的数据，显示正常数据（包括空字符串，但排除字符串"0"）
@@ -34,20 +34,20 @@ const TokenList = {
                 // 默认情况：排除软删除的数据
                 conditions.push('(remark IS NULL OR remark != "0")');
             }
-            
+
             // 搜索条件：模糊查询token_name字段
             if (search && search.trim()) {
                 conditions.push('token_name LIKE ?');
                 params.push(`%${search.trim()}%`);
             }
-            
+
             if (conditions.length > 0) {
                 whereClause = 'WHERE ' + conditions.join(' AND ');
             }
-            
+
             const sql = `SELECT * FROM t_airdrop_token ${whereClause} ORDER BY create_at DESC LIMIT ${safePageSize} OFFSET ${offset}`;
             console.log('执行 SQL:', sql, '参数:', params);
-            
+
             const tokens = await query(sql, params);
             // 追加：读取 t_airdrop_lans 聚合原因，便于前端编辑态回填
             try {
@@ -90,7 +90,7 @@ const TokenList = {
             let whereClause = '';
             const params = [];
             const conditions = [];
-            
+
             // 状态过滤条件
             if (statusFilter === 'all') {
                 // All: 排除软删除的数据，显示正常数据（包括空字符串，但排除字符串"0"）
@@ -108,20 +108,20 @@ const TokenList = {
                 // 默认情况：排除软删除的数据
                 conditions.push('(remark IS NULL OR remark != "0")');
             }
-            
+
             // 搜索条件：模糊查询token_name字段
             if (search && search.trim()) {
                 conditions.push('token_name LIKE ?');
                 params.push(`%${search.trim()}%`);
             }
-            
+
             if (conditions.length > 0) {
                 whereClause = 'WHERE ' + conditions.join(' AND ');
             }
-            
+
             const sql = `SELECT COUNT(*) as total FROM t_airdrop_token ${whereClause}`;
             console.log('执行计数 SQL:', sql, '参数:', params);
-            
+
             const result = await query(sql, params);
             return result[0]?.total || 0;
         } catch (error) {
@@ -158,6 +158,11 @@ const TokenList = {
                 ? Number(data.hot_status)
                 : (data.isHot === 'yes' ? 1 : 0);
             const priority = Number(data.priority || 0);
+
+            // 验证 priority 字段：不允许负数、小于0、大于999以及浮点数
+            if (priority < 0 || priority > 999 || !Number.isInteger(priority)) {
+                throw new Error('Priority 必须是 0-999 之间的整数');
+            }
             const remark = data.remark || '';
             const authentication = data.authentication || 0;
 
@@ -210,7 +215,7 @@ const TokenList = {
                                 }
                                 reasonObj = obj;
                             }
-                        } catch {}
+                        } catch { }
                     }
 
                     const entries = Object.entries(reasonObj).filter(([_, v]) => (v ?? '').toString().trim() !== '');
@@ -268,7 +273,7 @@ const TokenList = {
                             const amountDay = Number(m?.amountPerDay ?? 0) || 0;
                             const valueDay = Number(m?.valuePerDay ?? 0) || 0;
                             const countries = Array.isArray(m?.countries) ? JSON.stringify(m.countries) : JSON.stringify([]);
-                            const deviceSupport = Array.isArray(m?.devices) ? JSON.stringify(m.devices) : JSON.stringify(['android','ios']);
+                            const deviceSupport = Array.isArray(m?.devices) ? JSON.stringify(m.devices) : JSON.stringify(['android', 'ios']);
                             const offlineDate = m?.offlineDate ? new Date(m.offlineDate) : null;
                             const tokenStatus = m?.oneOffStatus === 'enable' ? 1 : 0;
                             const remarkVal = (m?.remark ?? '').toString();
@@ -340,7 +345,7 @@ const TokenList = {
                     amountPerDay: r.amount_day || 0,
                     valuePerDay: r.value_day || 0,
                     countries: (() => { try { return JSON.parse(r.countries || '[]'); } catch { return []; } })(),
-                    devices: (() => { try { return JSON.parse(r.device_support || '[]'); } catch { return ['android','ios']; } })(),
+                    devices: (() => { try { return JSON.parse(r.device_support || '[]'); } catch { return ['android', 'ios']; } })(),
                     offlineDate: r.offline_date ? new Date(r.offline_date) : null,
                     oneOffStatus: Number(r.token_status) === 1 ? 'enable' : 'disable',
                     remark: r.remark || '',
@@ -441,7 +446,7 @@ const TokenList = {
                             }
                             reasonObj = obj;
                         }
-                    } catch {}
+                    } catch { }
                 }
 
                 // 需要实际的 token id，编辑时传入的idOrAddress就是ID
@@ -494,7 +499,7 @@ const TokenList = {
                                     const amountDay = Number(m?.amountPerDay ?? 0) || 0;
                                     const valueDay = Number(m?.valuePerDay ?? 0) || 0;
                                     const countries = Array.isArray(m?.countries) ? JSON.stringify(m.countries) : JSON.stringify([]);
-                                    const deviceSupport = Array.isArray(m?.devices) ? JSON.stringify(m.devices) : JSON.stringify(['android','ios']);
+                                    const deviceSupport = Array.isArray(m?.devices) ? JSON.stringify(m.devices) : JSON.stringify(['android', 'ios']);
                                     const offlineDate = m?.offlineDate ? new Date(m.offlineDate) : null;
                                     const tokenStatus = m?.oneOffStatus === 'enable' ? 1 : 0;
                                     const remarkVal = (m?.remark ?? '').toString();
@@ -528,7 +533,7 @@ const TokenList = {
                         }
                     } else if (airdrop_status === 0) {
                         // 不支持时清空
-                        try { await query('DELETE FROM t_airdrop_imgs WHERE \`token_id\` = ?', [tokenId]); } catch {}
+                        try { await query('DELETE FROM t_airdrop_imgs WHERE \`token_id\` = ?', [tokenId]); } catch { }
                     }
                 }
             } catch (lanErr) {
@@ -560,7 +565,7 @@ const TokenList = {
         try {
             const sql = 'SELECT price FROM t_wallet_tokens WHERE address = ? LIMIT 1';
             console.log('查询价格 SQL:', sql, '参数:', tokenAddress);
-            
+
             const result = await query(sql, [tokenAddress]);
             return result[0]?.price || 0;
         } catch (error) {
@@ -574,7 +579,7 @@ const TokenList = {
         try {
             const sql = 'UPDATE t_airdrop_token SET remark = ? WHERE id = ? OR token_address = ?';
             console.log('软删除 SQL:', sql, '参数:', ["0", idOrAddress, idOrAddress]);
-            
+
             const result = await query(sql, ["0", idOrAddress, idOrAddress]);
             return result.affectedRows > 0;
         } catch (error) {
@@ -582,8 +587,8 @@ const TokenList = {
             throw error;
         }
     },
-    
+
     //存图片
-  
+
 };
 export default TokenList;
