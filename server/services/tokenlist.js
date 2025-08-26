@@ -159,7 +159,7 @@ const TokenList = {
                 : (data.isHot === 'yes' ? 1 : 0);
             const priority = Number(data.priority || 0);
             const remark = data.remark || '';
-            const authentication = data.authentication || '';
+            const authentication = data.authentication || 0;
 
             const now = new Date();
             const sql = `INSERT INTO t_airdrop_token (\`id\`, \`token_name\`, \`token_symbol\`, \`token_address\`, \`token_desc\`, \`logo\`, \`swap_status\`, \`swap_desc\`, \`no_swap_url\`, \`airdrop_status\`, \`top_status\`, \`hot_status\`, \`priority\`, \`remark\`, \`authentication\`, \`create_at\`, \`update_at\`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
