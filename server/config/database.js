@@ -2,7 +2,7 @@
  * @Author: Tommy tommy@example.com
  * @Date: 2025-08-07 17:43:32
  * @LastEditors: Tommy tommy@example.com
- * @LastEditTime: 2025-08-07 17:51:33
+ * @LastEditTime: 2025-08-22 14:17:26
  * @FilePath: \drop_admin\server\config\database.js
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -21,9 +21,6 @@ const dbConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  acquireTimeout: 60000,
-  timeout: 60000,
-  reconnect: true
 };
 
 // 创建连接池
