@@ -212,6 +212,8 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     const [addCountryTarget, setAddCountryTarget] = useState<number | null>(null);
     const [addCountryCode, setAddCountryCode] = useState('');
     const [addCountryName, setAddCountryName] = useState('');
+    // 存储创建的对象URL，用于清理
+    const objectUrlsRef = React.useRef<Set<string>>(new Set());
     // 全部国家清单（对象结构），表单值仍使用代码数组
     const ALL_COUNTRIES = [
         { code: 'US', name: '美国' },
@@ -248,7 +250,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
         // 最后回退：本地文件预览
         if (file?.originFileObj) {
             try {
-                return URL.createObjectURL(file.originFileObj);
+                const objectUrl = URL.createObjectURL(file.originFileObj);
+                // 存储URL用于后续清理
+                objectUrlsRef.current.add(objectUrl);
+                return objectUrl;
             } catch {
                 // 忽略错误
             }
@@ -412,6 +417,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             const ok = code === 200;
             if (ok) {
                 // 成功：清空并关闭
+                cleanupObjectUrls();
                 form.resetFields();
                 setSwapSupport('yes');
                 setAirdropSupport('yes');
@@ -472,12 +478,27 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
         }
     };
 
+    // 清理对象URL的函数
+    const cleanupObjectUrls = () => {
+        objectUrlsRef.current.forEach(url => {
+            try {
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                // 忽略清理错误
+            }
+        });
+        objectUrlsRef.current.clear();
+    };
+
     const handleCancel = () => {
         // 清除所有防抖定时器
         Object.values(debounceTimersRef.current).forEach(timer => {
             if (timer) clearTimeout(timer);
         });
         debounceTimersRef.current = {};
+        
+        // 清理对象URL
+        cleanupObjectUrls();
         
         form.resetFields();
         setSwapSupport('yes');
@@ -782,8 +803,20 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
         setAddCountryVisible(false);
     };
 
+    // 组件卸载时清理对象URL
+    React.useEffect(() => {
+        return () => {
+            cleanupObjectUrls();
+        };
+    }, []);
+
     // 进入弹窗时回填
     React.useEffect(() => {
+        // 每次打开弹窗时清理之前的对象URL
+        if (visible) {
+            cleanupObjectUrls();
+        }
+        
         if (visible) {
             const iv = initialValues || {};
             const isTrue = (v: any) => v === 1 || v === '1' || v === true;
@@ -806,7 +839,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 tokenName: iv.tokenName ?? iv.name ?? '',
                 tokenSymbol: iv.tokenSymbol ?? iv.symbol ?? '',
                 tokenAddress: iv.tokenAddress ?? iv.address ?? '',
-                priority: iv.priority != null ? Number(iv.priority) : 0,
+                priority: iv.priority != null ? Number(iv.priority) : 999,
                 isPinned: iv.isPinned != null ? iv.isPinned : (isTrue(iv.top_status) ? 'yes' : 'no'),
                 isHot: iv.isHot != null ? iv.isHot : (isTrue(iv.hot_status) ? 'yes' : 'no'),
                 swapSupport: iv.swapSupport != null ? iv.swapSupport : (isFalse(iv.swap_status) ? 'no' : 'yes'),
@@ -1021,9 +1054,13 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                             <Form.Item
                                 name="priority"
                                 label="排序优先级 (1-999)"
-                                rules={[{ required: true, message: '请输入优先级' }]}
+                                rules={[
+                                    { required: true, message: '请输入优先级' },
+                                   
+                                ]}
+                                initialValue={999}
                             >
-                                <Input type="number" min={1} max={999} placeholder="1-999" />
+                                <Input type="number" min={1} max={999} step={1} placeholder="1-999" />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
@@ -1044,10 +1081,15 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                         </Col>
                     </Row>
 
-                    <div>
-                        <div className="ant-form-item-label" style={{marginBottom:'10px'}}><label className="ant-form-item-required">代币简介 (多语言)</label></div>
+                    <div className="mb-2">
+                        <div className="ant-form-item-label" style={{marginBottom:'10px'}}>
+                            <label className="ant-form-item-required" style={{fontWeight: 500, fontSize: 16}}>代币简介 (多语言)</label>
+                        </div>
                         <Row gutter={[16, 16]}>
                             <Col span={12}>
+                                <div className="text-xs text-gray-500" style={{ marginBottom: '5px' }}>
+                                    简介 (English) <span style={{ color: '#ff4d4f' }}>*</span>
+                                </div>
                                 <Form.Item style={{marginBottom:'10px'}} name={['description', 'en']} rules={[{ required: true, message: '请填写英文简介' }]}>
                                     <TextArea 
                                         placeholder="请输入English代币简介" 
@@ -1057,9 +1099,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (English) <span style={{color:'#ff4d4f'}}>*</span></div>
                             </Col>
                             <Col span={12}>
+                                <div className="text-xs text-gray-500" style={{ marginBottom: '5px' }}>简介 (繁體中文)</div>
                                 <Form.Item style={{marginBottom:'10px'}} name={['description', 'zh-TW']}>
                                     <TextArea 
                                         placeholder="请输入繁體中文代币简介" 
@@ -1069,9 +1111,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (繁體中文)</div>
                             </Col>
                             <Col span={12}>
+                                <div className="text-xs text-gray-500" style={{ marginBottom: '5px' }}>简介 (日本語)</div>
                                 <Form.Item style={{marginBottom:'10px'}} name={['description', 'ja']}>
                                     <TextArea 
                                         placeholder="请输入日本語代币简介" 
@@ -1081,9 +1123,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (日本語)</div>
                             </Col>
                             <Col span={12}>
+                                <div className="text-xs text-gray-500" style={{ marginBottom: '5px' }}>简介 (हिन्दी)</div>
                                 <Form.Item style={{marginBottom:'10px'}} name={['description', 'hi']}>
                                     <TextArea 
                                         placeholder="请输入हिन्दी代币简介" 
@@ -1093,9 +1135,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (हिन्दी)</div>
                             </Col>
                             <Col span={12}>
+                                <div className="text-xs text-gray-500" style={{ marginBottom: '5px' }}>简介 (Polski)</div>
                                 <Form.Item style={{marginBottom:'10px'}} name={['description', 'pl']}>
                                     <TextArea 
                                         placeholder="请输入Polski代币简介" 
@@ -1105,9 +1147,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (Polski)</div>
                             </Col>
                             <Col span={12}>
+                                <div className="text-xs text-gray-500" style={{ marginBottom: '5px' }}>简介 (Español)</div>
                                 <Form.Item style={{marginBottom:'10px'}} name={['description', 'es']}>
                                     <TextArea 
                                         placeholder="请输入Español代币简介" 
@@ -1117,9 +1159,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (Español)</div>
                             </Col>
                             <Col span={12}>
+                                <div className="text-xs text-gray-500" style={{ marginBottom: '5px' }}>简介 (Português)</div>
                                 <Form.Item style={{marginBottom:'10px'}} name={['description', 'pt']}>
                                     <TextArea 
                                         placeholder="请输入Português代币简介" 
@@ -1129,9 +1171,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (Português)</div>
                             </Col>
                             <Col span={12}>
+                                <div className="text-xs text-gray-500" style={{ marginBottom: '5px' }}>简介 (Bahasa Melayu)</div>
                                 <Form.Item style={{marginBottom:'10px'}} name={['description', 'ms']}>
                                     <TextArea 
                                         placeholder="请输入Bahasa Melayu代币简介" 
@@ -1141,9 +1183,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (Bahasa Melayu)</div>
                             </Col>
                             <Col span={12}>
+                                <div className="text-xs text-gray-500" style={{ marginBottom: '5px' }}>简介 (Bahasa Indonesia)</div>
                                 <Form.Item style={{marginBottom:'10px'}} name={['description', 'id']}>
                                     <TextArea 
                                         placeholder="请输入Bahasa Indonesia代币简介" 
@@ -1153,9 +1195,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (Bahasa Indonesia)</div>
                             </Col>
                             <Col span={12}>
+                                <div className="text-xs text-gray-500" style={{ marginBottom: '5px' }}>简介 (한국어)</div>
                                 <Form.Item style={{marginBottom:'10px'}} name={['description', 'ko']}>
                                     <TextArea 
                                         placeholder="请输入한국어代币简介" 
@@ -1165,11 +1207,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                         }}
                                     />
                                 </Form.Item>
-                                <div className="text-xs text-gray-500 -mt-2 mb-2" style={{marginBottom:'5px'}}>简介 (한국어)</div>
                             </Col> 
-                        </Row>
-                        <div className="text-sm text-blue-600 mt-1">英文简介为必填项。</div>
-                    </div>
+    </Row>
+    <div className="text-sm text-blue-600 mt-1">英文简介为必填项。</div>
+</div>
 
                     <Form.Item
                         name="tokenLogo"
