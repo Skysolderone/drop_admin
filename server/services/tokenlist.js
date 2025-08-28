@@ -163,6 +163,26 @@ const TokenList = {
             if (priority < 0 || priority > 999 || !Number.isInteger(priority)) {
                 throw new Error('Priority 必须是 0-999 之间的整数');
             }
+
+            // 验证 token 地址是否为必填
+            if (!token_address || token_address.trim() === '') {
+                throw new Error('Token 地址不能为空');
+            }
+
+            // 检查 token 地址是否已存在（包括软删除的记录）
+            const existingTokens = await query('SELECT id, token_name, remark FROM t_airdrop_token WHERE token_address = ?', [token_address]);
+            if (existingTokens && existingTokens.length > 0) {
+                const existingToken = existingTokens[0];
+                const isDeleted = existingToken.remark === '0';
+                const tokenName = existingToken.token_name || '未知';
+                
+                if (isDeleted) {
+                    throw new Error(`Token地址 ${token_address} 已存在但已被软删除（${tokenName}），请联系管理员恢复或使用其他地址`);
+                } else {
+                    throw new Error(`Token地址 ${token_address} 已存在（${tokenName}），不能重复添加`);
+                }
+            }
+
             const remark = data.remark || '';
             const authentication = data.authentication || 0;
 

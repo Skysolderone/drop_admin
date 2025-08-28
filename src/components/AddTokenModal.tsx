@@ -821,6 +821,20 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             const iv = initialValues || {};
             const isTrue = (v: any) => v === 1 || v === '1' || v === true;
             const isFalse = (v: any) => v === 0 || v === '0' || v === false;
+            
+            // 在新增模式下，重置表单和相关状态
+            if (mode === 'add') {
+                form.resetFields();
+                setSwapSupport('yes');
+                setAirdropSupport('yes');
+                setTokenPriceCache({});
+                // 清理方法删除模式状态
+                setMethodDeleteMode(false);
+                setCountryDeleteMode({});
+                // 重置到默认tab
+                setActiveTabKey(defaultTabKey ?? 'basic');
+                return;
+            }
             // 描述解析
             let description = undefined as any;
             if (iv.description) description = iv.description;
@@ -947,7 +961,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 }).catch(() => {/* ignore */ });
             }
         }
-    }, [visible, initialValues]);
+    }, [visible, initialValues, mode, defaultTabKey]);
 
     const uploadProps = {
         beforeUpload: (file: File) => {
@@ -1060,7 +1074,20 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                 ]}
                                 initialValue={999}
                             >
-                                <Input type="number" min={1} max={999} step={1} placeholder="1-999" />
+                                <Input 
+                                    type="number" 
+                                    min={1} 
+                                    max={999} 
+                                    step={1} 
+                                    placeholder="1-999" 
+                                    onChange={(e) => {
+                                        const value = parseFloat(e.target.value);
+                                        if (!isNaN(value) && (value < 1 || value > 999)) {
+                                            e.target.value = Math.min(Math.max(value, 1), 999).toString();
+                                            form.setFieldValue('priority', Math.min(Math.max(value, 1), 999));
+                                        }
+                                    }}
+                                />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
@@ -1686,7 +1713,19 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                                                 label="Rank"
                                                                 rules={[{ required: true, message: '请输入Rank' }]}
                                                             >
-                                                                <Input type="number" min={1} max={999} placeholder="1-999" />
+                                                                <Input 
+                                                                    type="number" 
+                                                                    min={1} 
+                                                                    max={999} 
+                                                                    placeholder="1-999" 
+                                                                    onChange={(e) => {
+                                                                        const value = parseFloat(e.target.value);
+                                                                        if (!isNaN(value) && (value < 1 || value > 999)) {
+                                                                            e.target.value = Math.min(Math.max(value, 1), 999).toString();
+                                                                            form.setFieldValue(['airdropMethods', field.name, 'rank'], Math.min(Math.max(value, 1), 999));
+                                                                        }
+                                                                    }}
+                                                                />
                                                             </Form.Item>
                                                         </Col>
                                                         <Col span={12}>
@@ -1697,7 +1736,19 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                                                 label="Priority"
                                                                 rules={[{ required: true, message: '请输入Priority' }]}
                                                             >
-                                                                <Input type="number" min={1} max={999} placeholder="1-999" />
+                                                                <Input 
+                                                                    type="number" 
+                                                                    min={1} 
+                                                                    max={999} 
+                                                                    placeholder="1-999" 
+                                                                    onChange={(e) => {
+                                                                        const value = parseFloat(e.target.value);
+                                                                        if (!isNaN(value) && (value < 1 || value > 999)) {
+                                                                            e.target.value = Math.min(Math.max(value, 1), 999).toString();
+                                                                            form.setFieldValue(['airdropMethods', field.name, 'priority'], Math.min(Math.max(value, 1), 999));
+                                                                        }
+                                                                    }}
+                                                                />
                                                             </Form.Item>
                                                         </Col>
                                                     </Row>
