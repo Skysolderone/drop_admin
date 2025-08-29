@@ -12,6 +12,10 @@ export default defineConfig({
         // 若后端不带 /api 前缀可开启重写：
         // rewrite: (path) => path.replace(/^\/api/, ''),
       },
+      // '/v1': {
+      //   target: 'http://192.168.4.25:9090',
+      //   changeOrigin: true,
+      // },
       '/uploads': {
         target: 'http://localhost:3001',
         changeOrigin: true,

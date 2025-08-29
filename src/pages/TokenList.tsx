@@ -231,6 +231,21 @@ const TokenList: React.FC = () => {
             message.error('导出CSV文件失败');
         }
     };
+
+    const handleReloadApp = async () => {
+        try {
+            const { data: result } = await api.get('/v1/app/reload');
+            if (result.code === 200) {
+                message.success('应用重载成功！');
+            } else {
+                message.error(result.message || '应用重载失败');
+                
+            }
+        } catch (error: any) {
+            console.error('应用重载错误:', error);
+            message.error(error?.response?.data?.message || error?.message || '应用重载失败');
+        }
+    };
     const columns = [
         {
             title: 'Priority',
@@ -468,6 +483,18 @@ const TokenList: React.FC = () => {
                         }
                     />
                     <div className='flex '>
+                        <Button onClick={handleReloadApp}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                marginRight: '15px',
+                            }}
+                        >
+                            🔄 Refresh APP
+                        </Button>
                         <Button
                             onClick={() => fetchTokens(pagination.current, pagination.pageSize, statusFilter === 'all' ? undefined : statusFilter, searchValue)}
                             style={{

@@ -1178,7 +1178,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                     addressCheckStatus === 'checking' ? '正在检查地址是否重复...' :
                                     addressCheckStatus === 'duplicate' && duplicateTokenInfo ? 
                                         duplicateTokenInfo.isDeleted 
-                                            ? `该地址已存在但已被删除 (${duplicateTokenInfo.name})，请联系管理员恢复或使用其他地址`
+                                            ? `该地址已存在但已被删除 (${duplicateTokenInfo.name})`
                                             : `该地址已存在 (${duplicateTokenInfo.name})，不能重复添加`
                                     : addressCheckStatus === 'available' ? '地址可用' : undefined
                                 }
