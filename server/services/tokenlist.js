@@ -608,7 +608,19 @@ const TokenList = {
         }
     },
 
-    //存图片
+    // 检查token地址是否已存在
+    checkAddressExists: async (address) => {
+        try {
+            const sql = 'SELECT id, token_name, token_address, remark FROM t_airdrop_token WHERE token_address = ? LIMIT 1';
+            console.log('检查地址SQL:', sql, '参数:', address);
+
+            const result = await query(sql, [address]);
+            return result[0] || null;
+        } catch (error) {
+            console.error('TokenList.checkAddressExists 错误:', error);
+            throw error;
+        }
+    },
 
 };
 export default TokenList;

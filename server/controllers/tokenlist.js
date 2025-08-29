@@ -121,4 +121,21 @@ export const softDeleteToken = async (req, res) => {
   }
 };
 
+// 检查token地址是否重复
+export const checkTokenAddress = async (req, res) => {
+  try {
+    const { address } = req.params;
+    if (!address) return application.create_error_response(res, 400, '缺少token地址');
+    
+    const existingToken = await TokenList.checkAddressExists(address);
+    return application.create_response(res, { 
+      exists: !!existingToken, 
+      token: existingToken 
+    });
+  } catch (error) {
+    console.error('检查token地址错误:', error);
+    return application.create_error_response(res, 500, '检查token地址失败');
+  }
+};
+
 

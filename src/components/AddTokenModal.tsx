@@ -212,6 +212,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     const [addCountryTarget, setAddCountryTarget] = useState<number | null>(null);
     const [addCountryCode, setAddCountryCode] = useState('');
     const [addCountryName, setAddCountryName] = useState('');
+    // 地址重复检查状态
+    const [addressCheckStatus, setAddressCheckStatus] = useState<'checking' | 'duplicate' | 'available' | null>(null);
+    const [duplicateTokenInfo, setDuplicateTokenInfo] = useState<{name: string, isDeleted: boolean} | null>(null);
     // 存储创建的对象URL，用于清理
     const objectUrlsRef = React.useRef<Set<string>>(new Set());
     // 全部国家清单（对象结构），表单值仍使用代码数组
@@ -326,6 +329,58 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             airdropMethods.forEach((_: any, index: number) => {
                 debouncedCalculateValuePerDay(index, 100);
             });
+        }, delay);
+    };
+
+    // 防抖检查token地址是否重复
+    const debouncedCheckTokenAddress = (address: string, delay: number = 800) => {
+        const key = 'check-token-address';
+        
+        // 清除之前的定时器
+        if (debounceTimersRef.current[key]) {
+            clearTimeout(debounceTimersRef.current[key]);
+        }
+        
+        // 重置状态
+        setAddressCheckStatus(null);
+        setDuplicateTokenInfo(null);
+        
+        // 如果地址为空，不检查
+        if (!address || address.trim() === '') {
+            return;
+        }
+        
+        // 只在新增模式下检查
+        if (mode !== 'add') {
+            return;
+        }
+        
+        // 设置新的定时器
+        debounceTimersRef.current[key] = setTimeout(async () => {
+            try {
+                setAddressCheckStatus('checking');
+                // 使用专门的地址检查API
+                const { data: result } = await api.get(`/api/tokens/check-address/${encodeURIComponent(address.trim())}`);
+                
+                if (result.code === 200) {
+                    if (result.data?.exists && result.data?.token) {
+                        const existingToken = result.data.token;
+                        setAddressCheckStatus('duplicate');
+                        setDuplicateTokenInfo({
+                            name: existingToken.token_name || '未知',
+                            isDeleted: existingToken.remark === '0'
+                        });
+                    } else {
+                        setAddressCheckStatus('available');
+                        setDuplicateTokenInfo(null);
+                    }
+                } else {
+                    setAddressCheckStatus(null);
+                }
+            } catch (error) {
+                console.error('检查token地址失败:', error);
+                setAddressCheckStatus(null);
+            }
         }, delay);
     };
 
@@ -504,6 +559,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
         setSwapSupport('yes');
         setAirdropSupport('yes');
         setTokenPriceCache({});
+        // 重置地址检查状态
+        setAddressCheckStatus(null);
+        setDuplicateTokenInfo(null);
         onCancel();
     };
 
@@ -831,6 +889,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 // 清理方法删除模式状态
                 setMethodDeleteMode(false);
                 setCountryDeleteMode({});
+                // 重置地址检查状态
+                setAddressCheckStatus(null);
+                setDuplicateTokenInfo(null);
                 // 重置到默认tab
                 setActiveTabKey(defaultTabKey ?? 'basic');
                 return;
@@ -1081,10 +1142,23 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                     step={1} 
                                     placeholder="1-999" 
                                     onChange={(e) => {
-                                        const value = parseFloat(e.target.value);
-                                        if (!isNaN(value) && (value < 1 || value > 999)) {
-                                            e.target.value = Math.min(Math.max(value, 1), 999).toString();
-                                            form.setFieldValue('priority', Math.min(Math.max(value, 1), 999));
+                                        const value = parseInt(e.target.value);
+                                        // 检查是否为有效整数
+                                        if (!isNaN(value) && Number.isInteger(value)) {
+                                            if (value < 1 || value > 999) {
+                                                const clampedValue = Math.min(Math.max(value, 1), 999);
+                                                e.target.value = clampedValue.toString();
+                                                form.setFieldValue('priority', clampedValue);
+                                            }
+                                        } else if (e.target.value !== '') {
+                                            // 如果输入的不是有效整数，清空输入
+                                            e.target.value = '';
+                                        }
+                                    }}
+                                    onKeyPress={(e) => {
+                                        // 禁止输入小数点和其他非数字字符
+                                        if (e.key === '.' || e.key === '-' || e.key === 'e' || e.key === 'E') {
+                                            e.preventDefault();
                                         }
                                     }}
                                 />
@@ -1095,13 +1169,29 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                 name="tokenAddress"
                                 label="代币地址"
                                 rules={[{ required: true, message: '请输入代币地址' }]}
+                                validateStatus={
+                                    addressCheckStatus === 'checking' ? 'validating' :
+                                    addressCheckStatus === 'duplicate' ? 'error' :
+                                    addressCheckStatus === 'available' ? 'success' : undefined
+                                }
+                                help={
+                                    addressCheckStatus === 'checking' ? '正在检查地址是否重复...' :
+                                    addressCheckStatus === 'duplicate' && duplicateTokenInfo ? 
+                                        duplicateTokenInfo.isDeleted 
+                                            ? `该地址已存在但已被删除 (${duplicateTokenInfo.name})，请联系管理员恢复或使用其他地址`
+                                            : `该地址已存在 (${duplicateTokenInfo.name})，不能重复添加`
+                                    : addressCheckStatus === 'available' ? '地址可用' : undefined
+                                }
                             >
                                 <Input 
                                     placeholder="请输入代币地址" 
-                                    onChange={() => {
+                                    onChange={(e) => {
+                                        const address = e.target.value;
                                         // 清除价格缓存，使用防抖重新计算所有方法的价格
                                         setTokenPriceCache({});
                                         debouncedRecalculateAll();
+                                        // 检查地址是否重复
+                                        debouncedCheckTokenAddress(address);
                                     }}
                                 />
                             </Form.Item>
@@ -1719,10 +1809,23 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                                                     max={999} 
                                                                     placeholder="1-999" 
                                                                     onChange={(e) => {
-                                                                        const value = parseFloat(e.target.value);
-                                                                        if (!isNaN(value) && (value < 1 || value > 999)) {
-                                                                            e.target.value = Math.min(Math.max(value, 1), 999).toString();
-                                                                            form.setFieldValue(['airdropMethods', field.name, 'rank'], Math.min(Math.max(value, 1), 999));
+                                                                        const value = parseInt(e.target.value);
+                                                                        // 检查是否为有效整数
+                                                                        if (!isNaN(value) && Number.isInteger(value)) {
+                                                                            if (value < 1 || value > 999) {
+                                                                                const clampedValue = Math.min(Math.max(value, 1), 999);
+                                                                                e.target.value = clampedValue.toString();
+                                                                                form.setFieldValue(['airdropMethods', field.name, 'rank'], clampedValue);
+                                                                            }
+                                                                        } else if (e.target.value !== '') {
+                                                                            // 如果输入的不是有效整数，清空输入
+                                                                            e.target.value = '';
+                                                                        }
+                                                                    }}
+                                                                    onKeyPress={(e) => {
+                                                                        // 禁止输入小数点和其他非数字字符
+                                                                        if (e.key === '.' || e.key === '-' || e.key === 'e' || e.key === 'E') {
+                                                                            e.preventDefault();
                                                                         }
                                                                     }}
                                                                 />
@@ -1742,10 +1845,23 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                                                     max={999} 
                                                                     placeholder="1-999" 
                                                                     onChange={(e) => {
-                                                                        const value = parseFloat(e.target.value);
-                                                                        if (!isNaN(value) && (value < 1 || value > 999)) {
-                                                                            e.target.value = Math.min(Math.max(value, 1), 999).toString();
-                                                                            form.setFieldValue(['airdropMethods', field.name, 'priority'], Math.min(Math.max(value, 1), 999));
+                                                                        const value = parseInt(e.target.value);
+                                                                        // 检查是否为有效整数
+                                                                        if (!isNaN(value) && Number.isInteger(value)) {
+                                                                            if (value < 1 || value > 999) {
+                                                                                const clampedValue = Math.min(Math.max(value, 1), 999);
+                                                                                e.target.value = clampedValue.toString();
+                                                                                form.setFieldValue(['airdropMethods', field.name, 'priority'], clampedValue);
+                                                                            }
+                                                                        } else if (e.target.value !== '') {
+                                                                            // 如果输入的不是有效整数，清空输入
+                                                                            e.target.value = '';
+                                                                        }
+                                                                    }}
+                                                                    onKeyPress={(e) => {
+                                                                        // 禁止输入小数点和其他非数字字符
+                                                                        if (e.key === '.' || e.key === '-' || e.key === 'e' || e.key === 'E') {
+                                                                            e.preventDefault();
                                                                         }
                                                                     }}
                                                                 />

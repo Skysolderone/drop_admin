@@ -8,6 +8,7 @@ import {
     getTokenDetail,
     getTokenPrice,
     softDeleteToken,
+    checkTokenAddress,
 } from '../controllers/tokenlist.js';
 
 const router = express.Router();
@@ -25,5 +26,7 @@ router.get('/tokenlists/:id/detail', getTokenDetail);
 router.get('/price/:address', getTokenPrice);
 // 软删除token
 router.delete('/tokenlists/:id', softDeleteToken);
+// 检查token地址是否重复
+router.get('/check-address/:address', checkTokenAddress);
 
 export default router;
