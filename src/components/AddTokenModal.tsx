@@ -875,6 +875,11 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             cleanupObjectUrls();
         }
         
+        // 每次初始值变化时也清理对象URL，防止编辑不同货币时图片缓存
+        if (visible && initialValues) {
+            cleanupObjectUrls();
+        }
+        
         if (visible) {
             const iv = initialValues || {};
             const isTrue = (v: any) => v === 1 || v === '1' || v === true;
@@ -941,8 +946,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             if (iv.logo) {
                 const cur = form.getFieldValue('tokenLogo');
                 if (!cur || (Array.isArray(cur) && cur.length === 0)) {
+                    // 为每个货币生成唯一的uid，避免文件对象被复用
+                    const uniqueUid = `logo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                     form.setFieldsValue({
-                        tokenLogo: [{ uid: '-1', name: 'logo.png', status: 'done', url: getImageUrl(iv.logo) }]
+                        tokenLogo: [{ uid: uniqueUid, name: 'logo.png', status: 'done', url: getImageUrl(iv.logo) }]
                     });
                 }
             }
@@ -1001,7 +1008,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                         // Upload fileList：使用统一的图片URL处理
                         const img = m?.imageUrl;
                         const processedImgUrl = img ? getImageUrl(img) : undefined;
-                        const fileList = processedImgUrl ? [{ uid: `img-${idx}`, name: 'image.png', status: 'done', url: processedImgUrl }] : [];
+                        // 为每个图片生成唯一的uid，避免文件对象被复用
+                        const uniqueUid = `img-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`;
+                        const fileList = processedImgUrl ? [{ uid: uniqueUid, name: 'image.png', status: 'done', url: processedImgUrl }] : [];
                         // DatePicker 值
                         const offlineVal = m?.offlineDate ? dayjs(m.offlineDate) : undefined;
                         return {
@@ -1023,6 +1032,24 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             }
         }
     }, [visible, initialValues, mode, defaultTabKey]);
+
+    // 当initialValues变化时，额外清理一次对象URL（用于编辑模式切换货币）
+    React.useEffect(() => {
+        if (visible && mode === 'edit' && initialValues) {
+            cleanupObjectUrls();
+            // 清理表单中的文件列表，强制重新创建
+            form.setFieldValue('tokenLogo', []);
+            // 短暂延迟后重新设置，确保清理完成
+            setTimeout(() => {
+                if (initialValues.logo) {
+                    const uniqueUid = `logo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                    form.setFieldsValue({
+                        tokenLogo: [{ uid: uniqueUid, name: 'logo.png', status: 'done', url: getImageUrl(initialValues.logo) }]
+                    });
+                }
+            }, 10);
+        }
+    }, [initialValues?.id, initialValues?.tokenId, initialValues?.token_id, initialValues?.address]);
 
     const uploadProps = {
         beforeUpload: (file: File) => {
