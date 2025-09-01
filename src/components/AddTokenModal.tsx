@@ -920,7 +920,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 swapSupport: iv.swapSupport != null ? iv.swapSupport : (isFalse(iv.swap_status) ? 'no' : 'yes'),
                 airdropSupport: iv.airdropSupport != null ? iv.airdropSupport : (isTrue(iv.airdrop_status) ? 'yes' : 'no'),
                 authentication: iv.authentication != null ? Number(iv.authentication) : 0,
-                remark: iv.remark != null ? Number(iv.remark) : 1, // 默认为1（有效），0为失效
+                remark: iv.remark !== null && iv.remark !== undefined && iv.remark !== "" ? Number(iv.remark) : 1, // 默认为1（有效），0为失效
                 description,
             };
 
@@ -1949,7 +1949,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                                     >
                                                         <Radio.Group>
                                                             <Radio value="enable">Enable</Radio>
-                                                            <Radio value="disable">Disable (Default)</Radio>
+                                                            <Radio value="disable">Disable</Radio>
                                                         </Radio.Group>
                                                     </Form.Item>
                                                 </Card>
