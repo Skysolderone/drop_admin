@@ -1,11 +1,11 @@
+import AWS from 'aws-sdk';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
+import fs from 'fs';
 import helmet from 'helmet';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
-import AWS from 'aws-sdk';
 import { initDatabase, testConnection } from './config/database.js';
 
 // 导入路由
@@ -139,12 +139,12 @@ app.post('/api/s3/upload', multer({ storage: multer.memoryStorage() }).single('f
     const key = `${prefix.endsWith('/') ? prefix : prefix + '/'}${fileName}`;
 
     // 环境配置
-    const endpoint = process.env.S3_ENDPOINT;
-    const accessKeyId = process.env.S3_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
-    const bucket = process.env.S3_BUCKET_NAME;
-    const region = process.env.S3_REGION || 'us-east-1';
-    const forcePathStyle = (process.env.S3_FORCE_PATH_STYLE || 'true').toLowerCase() === 'true';
+    const endpoint = 'https://objectstorageapi.sg-members-1.clawcloudrun.com'
+    const accessKeyId = 'zgtz7psd'
+    const secretAccessKey = '2mpvwbv8mvwz528x'
+    const bucket = 'zgtz7psd-drop'
+    const region = 'us-east-1'
+    const forcePathStyle = true
 
     if (!endpoint || !accessKeyId || !secretAccessKey || !bucket) {
       return res.status(500).json({ 
