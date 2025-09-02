@@ -11,9 +11,11 @@ export const getImageUrl = (path: string): string => {
   // 如果已经是完整URL（包括 S3 URL），直接返回
   if (path.startsWith('http') || path.startsWith('https')) return path;
   
-  // 如果是相对路径且以/开头，保持原样（本地服务器路径）
+  // 如果是相对路径且以/开头，使用CDN
   if (path.startsWith('/')) {
-    return path;
+    // 兼容旧路径格式
+    const normalizedPath = path.replace(/^\/uploadsurlpic\//i, '/uploadurlpic/');
+    return `${IMAGE_BASE_URL}${normalizedPath}`;
   }
   
   // 对于其他情况，拼接外部域名

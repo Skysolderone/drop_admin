@@ -40,6 +40,8 @@ const TokenList: React.FC = () => {
             const params: Record<string, string> = {
                 page: String(page),
                 limit: String(limit),
+                // 添加时间戳确保获取最新数据
+                _t: String(Date.now()),
             };
 
             if (status && status !== 'all') params.status = status;
@@ -56,6 +58,8 @@ const TokenList: React.FC = () => {
                     hotStatus: Number(token.hot_status) === 1 || token.is_hot === 1 || token.isHot === 'yes', 
                     logo: token.logo || token.logo_url,
                     tokenName: token.name || token.token_name,
+                    // 添加更新时间戳，用于缓存破坏
+                    updatedAt: token.updated_at || token.updatedAt || Date.now(),
                     tokenSymbol: token.symbol || token.token_symbol,
                     tokenDesc: (() => {
                         try {
@@ -139,7 +143,10 @@ const TokenList: React.FC = () => {
                 if (result.code === 200) {
                     message.success('代币添加成功！');
                     setIsModalVisible(false);
-                    fetchTokens(pagination.current, pagination.pageSize, statusFilter === 'all' ? undefined : statusFilter, searchValue);
+                    // 添加短暂延迟，确保后端处理完成后再刷新列表
+                    setTimeout(() => {
+                        fetchTokens(pagination.current, pagination.pageSize, statusFilter === 'all' ? undefined : statusFilter, searchValue);
+                    }, 500);
                 } else {
                     message.error(result.message || '添加失败');
                 }
@@ -149,7 +156,11 @@ const TokenList: React.FC = () => {
                 if (result.code === 200) {
                     message.success('代币更新成功！');
                     setIsModalVisible(false);
-                    fetchTokens(pagination.current, pagination.pageSize, statusFilter === 'all' ? undefined : statusFilter, searchValue);
+                    setEditingToken(null);
+                    // 添加短暂延迟，确保后端处理完成后再刷新列表
+                    setTimeout(() => {
+                        fetchTokens(pagination.current, pagination.pageSize, statusFilter === 'all' ? undefined : statusFilter, searchValue);
+                    }, 500);
                 } else {
                     message.error(result.message || '更新失败');
                 }
@@ -280,12 +291,23 @@ const TokenList: React.FC = () => {
             dataIndex: 'logo',
             key: 'logo',
             width: 80,
-            render: (logo: string) => {
-                const imageUrl = getImageUrl(logo);
+            render: (logo: string, record: any) => {
+                // 直接使用getImageUrl处理，它会自动处理CDN路径
+                let imageUrl = logo ? getImageUrl(logo) : '';
+                
+                // 添加时间戳作为缓存破坏参数，确保显示最新的图片
+                if (imageUrl) {
+                    const separator = imageUrl.includes('?') ? '&' : '?';
+                    // 使用记录的更新时间或当前时间作为版本号
+                    const version = record.updatedAt || record.updated_at || Date.now();
+                    imageUrl = `${imageUrl}${separator}v=${version}`;
+                }
+                
                 console.log('Original logo:', logo, 'Generated imageUrl:', imageUrl); // 调试日志
+                
                 if (imageUrl) {
                     return (
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f0f0' }}>
                             <img 
                                 src={imageUrl} 
                                 alt="token logo" 
@@ -293,16 +315,30 @@ const TokenList: React.FC = () => {
                                 onError={(e) => {
                                     console.log('Image load error for:', imageUrl); // 调试日志
                                     const img = e.target as HTMLImageElement;
-                                    // 如果是本地路径失败，尝试使用外部CDN
-                                    if (logo && logo.startsWith('/') && !img.src.includes('img.dropwallet.world')) {
-                                        const cdnUrl = `https://img.dropwallet.world${logo}`;
-                                        console.log('Trying CDN URL:', cdnUrl);
-                                        img.src = cdnUrl;
+                                    
+                                    // 尝试不同的URL格式
+                                    const fallbackUrls = [];
+                                    
+                                    // 如果当前不是CDN URL，添加CDN前缀
+                                    if (!img.src.includes('img.dropwallet.world')) {
+                                        if (logo.startsWith('/')) {
+                                            fallbackUrls.push(`https://img.dropwallet.world${logo}`);
+                                        }
+                                    }
+                                    
+                                    // 如果有备用URL，尝试第一个
+                                    if (fallbackUrls.length > 0 && !img.dataset.retried) {
+                                        console.log('Trying fallback URL:', fallbackUrls[0]);
+                                        img.dataset.retried = 'true';
+                                        img.src = fallbackUrls[0];
                                         return;
                                     }
+                                    
                                     // 最终失败，显示占位符
                                     img.style.display = 'none';
-                                    img.parentElement!.innerHTML = '📷';
+                                    if (img.parentElement) {
+                                        img.parentElement.innerHTML = '<span style="font-size: 20px;">📷</span>';
+                                    }
                                 }}
                             />
                         </div>
@@ -310,7 +346,7 @@ const TokenList: React.FC = () => {
                 }
                 return (
                     <div style={{ width: 32, height: 32, backgroundColor: '#f0f0f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        📷
+                        <span style={{ fontSize: '20px' }}>📷</span>
                     </div>
                 );
             },

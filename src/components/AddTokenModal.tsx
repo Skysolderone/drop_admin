@@ -238,6 +238,11 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     const getImagePreviewUrl = (file: any): string | undefined => {
         if (!file) return undefined;
         
+        // 如果文件正在上传中，返回undefined
+        if (file?.status === 'uploading') {
+            return undefined;
+        }
+        
         // 优先级：上传响应的URL > file.url > thumbUrl > 本地对象URL
         let url: string | undefined = 
             file?.response?.data?.url ||
@@ -245,13 +250,13 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             file?.url ||
             file?.thumbUrl;
 
-        // 使用统一的图片URL处理函数
+        // 使用统一的图片URL处理函数，确保使用CDN
         if (url) {
             return getImageUrl(url);
         }
 
         // 最后回退：本地文件预览
-        if (file?.originFileObj) {
+        if (file?.originFileObj && file?.status !== 'done') {
             try {
                 const objectUrl = URL.createObjectURL(file.originFileObj);
                 // 存储URL用于后续清理
@@ -407,9 +412,20 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                     const f0 = values.tokenLogo[0];
                     // 优先使用上传响应中的 URL
                     if (f0?.response?.data?.url) {
+                        // 新上传的文件，直接使用响应中的路径
                         output.logo = f0.response.data.url;
                     } else if (f0?.url) {
-                        output.logo = f0.url; // 已有的 URL
+                        // 编辑时的已有文件
+                        let logoUrl = f0.url;
+                        // 如果URL包含CDN域名，去除它只保留路径部分
+                        if (logoUrl.includes('img.dropwallet.world')) {
+                            // 提取路径部分
+                            const match = logoUrl.match(/https?:\/\/[^\/]+(\/.*)/);
+                            if (match && match[1]) {
+                                logoUrl = match[1];
+                            }
+                        }
+                        output.logo = logoUrl;
                     } else if (f0?.originFileObj) {
                         // 兼容：未走自定义上传时，仍可提交 File
                         output.tokenLogo = f0.originFileObj as File;
@@ -428,7 +444,22 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                     if (Array.isArray(m?.image) && m.image.length > 0) {
                         const img = m.image[0];
                         // 优先使用上传响应中的 URL
-                        imageUrl = img?.response?.data?.url || img?.url;
+                        if (img?.response?.data?.url) {
+                            // 新上传的文件，直接使用响应中的路径
+                            imageUrl = img.response.data.url;
+                        } else if (img?.url) {
+                            // 编辑时的已有文件
+                            let url = img.url;
+                            // 如果URL包含CDN域名，去除它只保留路径部分
+                            if (url.includes('img.dropwallet.world')) {
+                                // 提取路径部分
+                                const match = url.match(/https?:\/\/[^\/]+(\/.*)/);
+                                if (match && match[1]) {
+                                    url = match[1];
+                                }
+                            }
+                            imageUrl = url;
+                        }
                     }
                     const devices = Array.isArray(m?.devices) ? m.devices : [];
                     // 归一化 offlineDate
@@ -957,7 +988,13 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                     // 为每个货币生成唯一的uid，避免文件对象被复用
                     const uniqueUid = `logo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                     form.setFieldsValue({
-                        tokenLogo: [{ uid: uniqueUid, name: 'logo.png', status: 'done', url: getImageUrl(iv.logo) }]
+                        tokenLogo: [{ 
+                            uid: uniqueUid, 
+                            name: 'logo.png', 
+                            status: 'done', 
+                            url: getImageUrl(iv.logo),
+                            response: { data: { url: iv.logo } }  // 添加response确保保存时能获取到正确的URL
+                        }]
                     });
                 }
             }
@@ -1018,7 +1055,13 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                         const processedImgUrl = img ? getImageUrl(img) : undefined;
                         // 为每个图片生成唯一的uid，避免文件对象被复用
                         const uniqueUid = `img-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`;
-                        const fileList = processedImgUrl ? [{ uid: uniqueUid, name: 'image.png', status: 'done', url: processedImgUrl }] : [];
+                        const fileList = processedImgUrl ? [{ 
+                            uid: uniqueUid, 
+                            name: 'image.png', 
+                            status: 'done', 
+                            url: processedImgUrl,
+                            response: { data: { url: img } }  // 添加response确保保存时能获取到正确的URL
+                        }] : [];
                         // DatePicker 值
                         const offlineVal = m?.offlineDate ? dayjs(m.offlineDate) : undefined;
                         return {
@@ -1047,15 +1090,23 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             cleanupObjectUrls();
             // 清理表单中的文件列表，强制重新创建
             form.setFieldValue('tokenLogo', []);
+            form.setFieldValue('airdropMethods', []);
+            
             // 短暂延迟后重新设置，确保清理完成
             setTimeout(() => {
                 if (initialValues.logo) {
                     const uniqueUid = `logo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                     form.setFieldsValue({
-                        tokenLogo: [{ uid: uniqueUid, name: 'logo.png', status: 'done', url: getImageUrl(initialValues.logo) }]
+                        tokenLogo: [{ 
+                            uid: uniqueUid, 
+                            name: 'logo.png', 
+                            status: 'done', 
+                            url: getImageUrl(initialValues.logo),
+                            response: { data: { url: initialValues.logo } }  // 添加response确保保存时能获取到正确的URL
+                        }]
                     });
                 }
-            }, 10);
+            }, 50);
         }
     }, [initialValues?.id, initialValues?.tokenId, initialValues?.token_id, initialValues?.address]);
 
@@ -1093,7 +1144,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
 
                 // 让 Upload 自身接管 fileList：为文件设置 url，返回成功
                 (file as any).url = url;
-                if (onSuccess) onSuccess({ url });
+                if (onSuccess) onSuccess({ data: { url } });
             } catch (e: any) {
                 message.error(e?.message || '上传失败');
                 if (onError) onError(e);
