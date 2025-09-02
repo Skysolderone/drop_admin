@@ -24,20 +24,13 @@ export async function POST(request: Request) {
     const fileName = `${Date.now()}_${base}${ext || '.bin'}`
     const key = `${prefix?.endsWith('/') ? prefix : prefix + '/'}${fileName}`
 
-    // Env config
-    const endpoint = process.env.S3_ENDPOINT
-    const accessKeyId = process.env.S3_ACCESS_KEY_ID
-    const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY
-    const bucket = process.env.S3_BUCKET_NAME
-    const region = process.env.S3_REGION || 'us-east-1'
-    const forcePathStyle = (process.env.S3_FORCE_PATH_STYLE || 'true').toLowerCase() === 'true'
-
-    if (!endpoint || !accessKeyId || !secretAccessKey || !bucket) {
-      return NextResponse.json(
-        { success: false, message: 'S3 config missing. Please set S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_BUCKET_NAME' },
-        { status: 500 },
-      )
-    }
+    // S3 config (hardcoded)
+    const endpoint = 'https://objectstorageapi.sg-members-1.clawcloudrun.com'
+    const accessKeyId = 'zgtz7psd'
+    const secretAccessKey = '2mpvwbv8mvwz528x'
+    const bucket = 'zgtz7psd-drop'
+    const region = 'us-east-1'
+    const forcePathStyle = true
 
     // Init S3 client (S3-compatible)
     const s3 = new AWS.S3({
