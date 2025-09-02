@@ -410,11 +410,28 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                     output.logo = '';
                 } else if (values.tokenLogo.length > 0) {
                     const f0 = values.tokenLogo[0];
+                    console.log('Processing logo file:', f0); // 调试日志
+                    
                     // 优先使用上传响应中的 URL
                     if (f0?.response?.data?.url) {
-                        // 新上传的文件，直接使用响应中的路径
-                        output.logo = f0.response.data.url;
-                    } else if (f0?.url) {
+                        // 新上传的文件，使用响应中的URL
+                        let logoUrl = f0.response.data.url;
+                        // 如果是S3 URL（objectstorageapi），保持完整URL
+                        // 如果是CDN URL（img.dropwallet.world），提取路径
+                        if (logoUrl.includes('img.dropwallet.world')) {
+                            const match = logoUrl.match(/https?:\/\/[^\/]+(\/.*)/);
+                            if (match && match[1]) {
+                                logoUrl = match[1];
+                            }
+                        }
+                        // S3 URL保持原样
+                        output.logo = logoUrl;
+                        console.log('Using response URL:', output.logo);
+                    } else if (f0?.response?.url) {
+                        // 备用：响应中的url字段
+                        output.logo = f0.response.url;
+                        console.log('Using response URL (fallback):', output.logo);
+                    } else if (f0?.url && typeof f0.url === 'string') {
                         // 编辑时的已有文件
                         let logoUrl = f0.url;
                         // 如果URL包含CDN域名，去除它只保留路径部分
@@ -425,15 +442,35 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                                 logoUrl = match[1];
                             }
                         }
+                        // S3 URL保持原样
                         output.logo = logoUrl;
-                    } else if (f0?.originFileObj) {
-                        // 兼容：未走自定义上传时，仍可提交 File
-                        output.tokenLogo = f0.originFileObj as File;
+                        console.log('Using existing URL:', output.logo);
+                    } else {
+                        // 如果没有URL，说明上传可能失败了
+                        console.error('No valid URL found for logo, file object:', f0);
+                        message.error('Logo上传失败，请重试');
+                        // 不设置logo字段，保留原值或空
+                        if (initialValues?.logo) {
+                            output.logo = initialValues.logo;
+                        }
                     }
                 }
             } else if (initialValues?.logo) {
                 // 编辑态且未触碰该字段：保留旧值
                 output.logo = initialValues.logo;
+            }
+            
+            // 确保不会传递文件对象给后端
+            if (output.tokenLogo) {
+                console.warn('Removing tokenLogo field from output');
+                delete output.tokenLogo;
+            }
+            
+            // 额外检查，确保logo字段是字符串
+            if (output.logo && typeof output.logo !== 'string') {
+                console.error('Logo is not a string:', output.logo);
+                message.error('Logo格式错误，请重新上传');
+                throw new Error('Invalid logo format');
             }
 
             // 2) Airdrop 方法归一化（按新UI结构）
@@ -445,20 +482,11 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                         const img = m.image[0];
                         // 优先使用上传响应中的 URL
                         if (img?.response?.data?.url) {
-                            // 新上传的文件，直接使用响应中的路径
+                            // 新上传的文件，使用完整URL
                             imageUrl = img.response.data.url;
                         } else if (img?.url) {
-                            // 编辑时的已有文件
-                            let url = img.url;
-                            // 如果URL包含CDN域名，去除它只保留路径部分
-                            if (url.includes('img.dropwallet.world')) {
-                                // 提取路径部分
-                                const match = url.match(/https?:\/\/[^\/]+(\/.*)/);
-                                if (match && match[1]) {
-                                    url = match[1];
-                                }
-                            }
-                            imageUrl = url;
+                            // 编辑时的已有文件，保持原样
+                            imageUrl = img.url;
                         }
                     }
                     const devices = Array.isArray(m?.devices) ? m.devices : [];
@@ -505,6 +533,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 });
             }
 
+            console.log('Final output to save:', output);
+            console.log('Logo field value:', output.logo);
+            console.log('Logo field type:', typeof output.logo);
+            
             setSaving(true);
             const res = await onSave(output);
             const code = (res && (res.code ?? res.status ?? res?.data?.code)) as number | undefined;
@@ -1136,15 +1168,25 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 const ok = res?.data?.code === 200;
                 let url = res?.data?.data?.url as string | undefined;
                 if (!ok || !url) throw new Error(res?.data?.message || '上传失败');
-                // 归一化路径：加前导斜杠并兼容旧前缀
+                
+                // 处理不同类型的URL
+                // 1. 如果是完整的S3 URL，保持原样
+                // 2. 如果是相对路径，归一化处理
                 if (!/^https?:\/\//i.test(url)) {
+                    // 相对路径：加前导斜杠并兼容旧前缀
                     if (!url.startsWith('/')) url = `/${url}`;
                     url = url.replace(/^\/uploadsurlpic\//i, '/uploadurlpic/');
                 }
+                // 对于S3 URL，直接使用完整URL
 
                 // 让 Upload 自身接管 fileList：为文件设置 url，返回成功
+                console.log('Upload success, setting URL:', url);
                 (file as any).url = url;
-                if (onSuccess) onSuccess({ data: { url } });
+                (file as any).response = { data: { url } }; // 确保response被设置
+                if (onSuccess) {
+                    onSuccess({ data: { url } });
+                    console.log('Called onSuccess with:', { data: { url } });
+                }
             } catch (e: any) {
                 message.error(e?.message || '上传失败');
                 if (onError) onError(e);
@@ -1172,12 +1214,24 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 const ok = res?.data?.code === 200;
                 let url = res?.data?.data?.url as string | undefined;
                 if (!ok || !url) throw new Error(res?.data?.message || '上传失败');
+                
+                // 处理不同类型的URL
+                // 1. 如果是完整的S3 URL，保持原样
+                // 2. 如果是相对路径，归一化处理
                 if (!/^https?:\/\//i.test(url)) {
+                    // 相对路径：加前导斜杠并兼容旧前缀
                     if (!url.startsWith('/')) url = `/${url}`;
                     url = url.replace(/^\/uploadsurlpic\//i, '/uploadurlpic/');
                 }
+                // 对于S3 URL，直接使用完整URL
+                
+                console.log('Airdrop upload success, setting URL:', url);
                 (file as any).url = url;
-                if (onSuccess) onSuccess({ url });
+                (file as any).response = { data: { url } }; // 确保response被设置
+                if (onSuccess) {
+                    onSuccess({ data: { url } });
+                    console.log('Called onSuccess with:', { data: { url } });
+                }
             } catch (e: any) {
                 message.error(e?.message || '上传失败');
                 if (onError) onError(e);
