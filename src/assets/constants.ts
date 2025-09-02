@@ -8,8 +8,8 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 export const getImageUrl = (path: string): string => {
   if (!path) return '';
   
-  // 如果已经是完整URL，直接返回
-  if (path.startsWith('http')) return path;
+  // 如果已经是完整URL（包括 S3 URL），直接返回
+  if (path.startsWith('http') || path.startsWith('https')) return path;
   
   // 如果是相对路径且以/开头，保持原样（本地服务器路径）
   if (path.startsWith('/')) {

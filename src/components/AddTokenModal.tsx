@@ -405,8 +405,11 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                     output.logo = '';
                 } else if (values.tokenLogo.length > 0) {
                     const f0 = values.tokenLogo[0];
-                    if (f0?.url) {
-                        output.logo = f0.url; // 优先使用已上传的 URL
+                    // 优先使用上传响应中的 URL
+                    if (f0?.response?.data?.url) {
+                        output.logo = f0.response.data.url;
+                    } else if (f0?.url) {
+                        output.logo = f0.url; // 已有的 URL
                     } else if (f0?.originFileObj) {
                         // 兼容：未走自定义上传时，仍可提交 File
                         output.tokenLogo = f0.originFileObj as File;
@@ -421,7 +424,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             if (airdropSupport === 'yes' && Array.isArray(values.airdropMethods)) {
                 output.airdropMethods = values.airdropMethods.map((m: any) => {
                     // 使用上传后的 URL，避免后端拿不到 img_url
-                    const imageUrl = Array.isArray(m?.image) && m.image[0]?.url ? m.image[0].url : undefined;
+                    let imageUrl = undefined;
+                    if (Array.isArray(m?.image) && m.image.length > 0) {
+                        const img = m.image[0];
+                        // 优先使用上传响应中的 URL
+                        imageUrl = img?.response?.data?.url || img?.url;
+                    }
                     const devices = Array.isArray(m?.devices) ? m.devices : [];
                     // 归一化 offlineDate
                     const od = m.offlineDate;
@@ -1065,7 +1073,8 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             try {
                 const formData = new FormData();
                 formData.append('file', file as File);
-                const res = await api.post('/api/upload', formData, {
+                formData.append('prefix', 'tokens');
+                const res = await api.post('/api/s3/upload', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                     onUploadProgress: (evt) => {
                         if (onProgress && evt.total) {
@@ -1092,7 +1101,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
         }
     } as any;
 
-    // Airdrop 方法图片专用上传（保存到 /uploadurlpic）
+    // Airdrop 方法图片专用上传
     const airdropUploadProps = {
         beforeUpload: uploadProps.beforeUpload,
         customRequest: async (options: any) => {
@@ -1100,7 +1109,8 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             try {
                 const formData = new FormData();
                 formData.append('file', file as File);
-                const res = await api.post('/api/uploadurlpic', formData, {
+                formData.append('prefix', 'airdrops');
+                const res = await api.post('/api/s3/upload', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                     onUploadProgress: (evt) => {
                         if (onProgress && evt.total) {

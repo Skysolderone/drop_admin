@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import AWS from 'aws-sdk';
 import { initDatabase, testConnection } from './config/database.js';
 
 // 导入路由
@@ -118,6 +119,80 @@ app.post('/api/uploadurlpic', uploadUrlPic.single('file'), (req, res) => {
   } catch (err) {
     console.error('uploadurlpic 上传失败:', err);
     res.status(500).json({ code: 500, message: '上传失败' });
+  }
+});
+
+// S3 上传接口
+app.post('/api/s3/upload', multer({ storage: multer.memoryStorage() }).single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    const prefix = req.body.prefix || 'uploads/';
+
+    if (!file) {
+      return res.status(400).json({ code: 400, message: '未接收到文件' });
+    }
+
+    // 构建安全的文件名
+    const ext = path.extname(file.originalname || '');
+    const base = path.basename(file.originalname || 'file', ext).replace(/[^a-zA-Z0-9-_]/g, '') || 'file';
+    const fileName = `${Date.now()}_${base}${ext || '.bin'}`;
+    const key = `${prefix.endsWith('/') ? prefix : prefix + '/'}${fileName}`;
+
+    // 环境配置
+    const endpoint = process.env.S3_ENDPOINT;
+    const accessKeyId = process.env.S3_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
+    const bucket = process.env.S3_BUCKET_NAME;
+    const region = process.env.S3_REGION || 'us-east-1';
+    const forcePathStyle = (process.env.S3_FORCE_PATH_STYLE || 'true').toLowerCase() === 'true';
+
+    if (!endpoint || !accessKeyId || !secretAccessKey || !bucket) {
+      return res.status(500).json({ 
+        code: 500, 
+        message: 'S3 配置缺失，请设置环境变量' 
+      });
+    }
+
+    // 初始化 S3 客户端
+    const s3 = new AWS.S3({
+      endpoint,
+      accessKeyId,
+      secretAccessKey,
+      s3ForcePathStyle: forcePathStyle,
+      signatureVersion: 'v4',
+      region,
+    });
+
+    // 上传到 S3
+    const result = await s3.upload({
+      Bucket: bucket,
+      Key: key,
+      Body: file.buffer,
+      ACL: 'public-read',
+      ContentType: file.mimetype || 'application/octet-stream',
+    }).promise();
+
+    // 返回 URL
+    const url = result.Location || `${endpoint.replace(/\/$/, '')}/${forcePathStyle ? `${bucket}/` : ''}${key}`;
+    
+    res.json({ 
+      code: 200, 
+      message: '上传成功', 
+      data: { 
+        url, 
+        bucket, 
+        key,
+        filename: fileName,
+        mimetype: file.mimetype,
+        size: file.size
+      } 
+    });
+  } catch (err) {
+    console.error('S3 上传失败:', err);
+    res.status(500).json({ 
+      code: 500, 
+      message: err.message || '上传失败' 
+    });
   }
 });
 
