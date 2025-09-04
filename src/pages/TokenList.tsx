@@ -253,7 +253,8 @@ const TokenList: React.FC = () => {
         setReloadLoading(true);
         try {
             const { data: result } = await api.get('/v1/app/reload');
-            console.log('APP刷新结果:', result,api);
+            console.log('APP刷新结果:', result);
+            console.log('完整的API对象:', JSON.stringify(api, null, 2));
             
             if (result.code === 200) {
                 message.success('APP刷新成功！');
@@ -286,7 +287,7 @@ const TokenList: React.FC = () => {
             try {
                 const { data: result } = await api.get('/v1/app/reload/status');
                 console.log(`轮询状态 (${attempts}/${maxAttempts}):`, result,api);
-                
+                    console.log('完整的API对象:', JSON.stringify(api, null, 2));
                 if (result.status === 'success' || result.code === 200) {
                     // 刷新成功
                     setReloadLoading(false);
