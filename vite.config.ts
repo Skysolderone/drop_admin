@@ -9,7 +9,7 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-const isProduction = process.env.NODE_ENV === 'production'
+// const isProduction = process.env.NODE_ENV === 'production'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -25,7 +25,7 @@ export default defineConfig({
         // rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/v1': {
-        target: isProduction ? 'http://drop-api-py:9393' : 'http://worldchain_drop_api:9393',
+        target:  'http://drop-api-py:9393',
         changeOrigin: true,
       },
       '/uploads': {
