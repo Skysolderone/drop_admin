@@ -252,7 +252,7 @@ const TokenList: React.FC = () => {
         
         setReloadLoading(true);
         try {
-            const { data: result } = await api.get('/v1/app/reload');
+            const { data: result } = await api.get('http://worldchain_drop_api/v1/app/reload');
             console.log('APP刷新结果:', result);
             
             if (result.code === 200) {
@@ -284,7 +284,7 @@ const TokenList: React.FC = () => {
         const checkStatus = async () => {
             attempts++;
             try {
-                const { data: result } = await api.get('/v1/app/reload/status');
+                const { data: result } = await api.get('http://worldchain_drop_api/v1/app/reload/status');
                 console.log(`轮询状态 (${attempts}/${maxAttempts}):`, result);
                 
                 if (result.status === 'success' || result.code === 200) {
