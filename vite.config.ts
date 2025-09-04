@@ -21,10 +21,10 @@ export default defineConfig({
         // 若后端不带 /api 前缀可开启重写：
         // rewrite: (path) => path.replace(/^\/api/, ''),
       },
-      // '/v1': {
-      //   target: 'http://worldchain_drop_api',
-      //   changeOrigin: true,
-      // },
+      '/v1': {
+        target: 'http://worldchain_drop_api:9393',
+        changeOrigin: true,
+      },
       '/uploads': {
         target: 'http://localhost:3001',
         changeOrigin: true,
