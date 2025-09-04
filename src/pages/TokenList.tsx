@@ -31,6 +31,7 @@ const TokenList: React.FC = () => {
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
     const [tokenToDelete, setTokenToDelete] = useState<any>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
+    const [reloadLoading, setReloadLoading] = useState(false);
     const { confirm } = Modal;
 
     // 获取代币列表
@@ -244,18 +245,89 @@ const TokenList: React.FC = () => {
     };
 
     const handleReloadApp = async () => {
+        if (reloadLoading) {
+            message.warning('APP正在刷新中，请稍候...');
+            return;
+        }
+        
+        setReloadLoading(true);
         try {
             const { data: result } = await api.get('/v1/app/reload');
+            console.log('APP刷新结果:', result);
+            
             if (result.code === 200) {
-                message.success('应用重载成功！');
+                message.success('APP刷新成功！');
             } else {
-                message.error(result.message || '应用重载失败');
-                
+                message.error(result.msg || result.message || 'APP刷新失败');
             }
         } catch (error: any) {
-            console.error('应用重载错误:', error);
-            message.error(error?.response?.data?.message || error?.message || '应用重载失败');
+            console.error('APP刷新错误:', error);
+            
+            // 检查是否是503错误（服务不可用，可能正在刷新）
+            if (error?.response?.status === 503) {
+                message.warning('APP正在刷新中，请稍候...');
+            } else {
+                message.error(error?.response?.data?.msg || error?.response?.data?.message || error?.message || 'APP刷新失败');
+            }
+        } finally {
+            // 不立即重置loading状态，而是开始轮询状态
+            pollReloadStatus();
         }
+    };
+
+    // 轮询刷新状态
+    const pollReloadStatus = async () => {
+        let attempts = 0;
+        const maxAttempts = 30; // 最多轮询30次，避免无限轮询
+        const pollInterval = 2000; // 每2秒轮询一次
+
+        const checkStatus = async () => {
+            attempts++;
+            try {
+                const { data: result } = await api.get('/v1/app/reload/status');
+                console.log(`轮询状态 (${attempts}/${maxAttempts}):`, result);
+                
+                if (result.status === 'success' || result.code === 200) {
+                    // 刷新成功
+                    setReloadLoading(false);
+                    message.success('APP刷新完成！');
+                    return;
+                } else if (result.status === 'failed' || result.code === 500) {
+                    // 刷新失败
+                    setReloadLoading(false);
+                    message.error('APP刷新失败！');
+                    return;
+                }
+                
+                // 继续轮询
+                if (attempts < maxAttempts) {
+                    setTimeout(checkStatus, pollInterval);
+                } else {
+                    // 超时
+                    setReloadLoading(false);
+                    message.warning('刷新状态检查超时，请手动确认');
+                }
+            } catch (error: any) {
+                console.error(`轮询状态错误 (${attempts}/${maxAttempts}):`, error);
+                
+                // 如果是网络错误或503，继续轮询
+                if (error?.response?.status === 503 || !error?.response) {
+                    if (attempts < maxAttempts) {
+                        setTimeout(checkStatus, pollInterval);
+                    } else {
+                        setReloadLoading(false);
+                        message.warning('刷新状态检查超时，请手动确认');
+                    }
+                } else {
+                    // 其他错误，停止轮询
+                    setReloadLoading(false);
+                    message.error('状态检查失败');
+                }
+            }
+        };
+
+        // 开始轮询
+        setTimeout(checkStatus, pollInterval);
     };
     const columns = [
         {
@@ -519,7 +591,10 @@ const TokenList: React.FC = () => {
                         }
                     />
                     <div className='flex '>
-                        <Button onClick={handleReloadApp}
+                        <Button 
+                            onClick={handleReloadApp}
+                            loading={reloadLoading}
+                            disabled={reloadLoading}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -529,7 +604,7 @@ const TokenList: React.FC = () => {
                                 marginRight: '15px',
                             }}
                         >
-                            🔄 Refresh APP
+                            {reloadLoading ? '刷新中...' : '🔄 Refresh APP'}
                         </Button>
                         <Button
                             onClick={() => fetchTokens(pagination.current, pagination.pageSize, statusFilter === 'all' ? undefined : statusFilter, searchValue)}
