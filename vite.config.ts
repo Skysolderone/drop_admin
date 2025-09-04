@@ -22,7 +22,7 @@ export default defineConfig({
         // rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/v1': {
-        target: 'http://192.168.3.146:9090',
+        target: 'http://worldchain_drop_api',
         changeOrigin: true,
       },
       '/uploads': {
