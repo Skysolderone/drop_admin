@@ -254,11 +254,6 @@ const TokenList: React.FC = () => {
         try {
             const { data: result } = await api.get('/v1/app/reload');
             console.log('APP刷新结果:', result);
-            console.log('API对象:', api);
-            console.log('API对象类型:', typeof api);
-            console.log('API对象构造函数:', api.constructor?.name);
-            console.log('API对象属性:', Object.getOwnPropertyNames(api));
-            console.log('API对象方法:', Object.getOwnPropertyNames(Object.getPrototypeOf(api)));
             
             if (result.code === 200) {
                 message.success('APP刷新成功！');
@@ -291,11 +286,7 @@ const TokenList: React.FC = () => {
             try {
                 const { data: result } = await api.get('/v1/app/reload/status');
                 console.log(`轮询状态 (${attempts}/${maxAttempts}):`, result);
-                console.log('API对象:', api);
-                console.log('API对象类型:', typeof api);
-                console.log('API对象构造函数:', api.constructor?.name);
-                console.log('API对象属性:', Object.getOwnPropertyNames(api));
-                console.log('API对象方法:', Object.getOwnPropertyNames(Object.getPrototypeOf(api)));
+             
                 if (result.status === 'success' || result.code === 200) {
                     // 刷新成功
                     setReloadLoading(false);
