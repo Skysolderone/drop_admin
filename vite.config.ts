@@ -25,7 +25,7 @@ export default defineConfig({
         // rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/v1': {
-        target:  'http://worldchain_drop_api:9393',
+        target:  'http://drop-api-py:9393',
         changeOrigin: true,
       },
       '/uploads': {

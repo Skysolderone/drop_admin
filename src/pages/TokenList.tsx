@@ -566,7 +566,7 @@ const TokenList: React.FC = () => {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px',marginBottom: '20px' }}>
                     <Input
-                        placeholder="Search tokens..."
+                        placeholder="Search tokens or token address..."
                         value={searchValue}
                         onChange={(e) => setSearchValue(e.target.value)}
                         onPressEnter={handleSearch}
