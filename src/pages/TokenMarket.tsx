@@ -207,6 +207,40 @@ const TokenMarket: React.FC = () => {
     fetchMarket(page, pageSize, search);
   };
 
+  const handleExportCSV = async () => {
+    try {
+      const csvData = data.map(token => ({
+        'Name': token.name,
+        'Symbol': token.symbol,
+        'Address': token.address,
+        'Price': token.price || '-',
+        'Liquidity': token.liq || '-',
+        'Volume 24h': token.vol24 || '-',
+        'Token Create': token.tokenCreate || '-',
+        'Holders': token.holders || '-',
+        'Create Time': token.create_time ? new Date(token.create_time).toLocaleString() : '-'
+      }));
+
+      const csvHeaders = Object.keys(csvData[0] || {}).join(',');
+      const csvRows = csvData.map(row => Object.values(row).map(val => `"${val}"`).join(','));
+      const csvContent = [csvHeaders, ...csvRows].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `token_market_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      message.success('CSV文件导出成功！');
+    } catch (error) {
+      message.error('导出CSV文件失败');
+    }
+  };
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6"></h1>
@@ -225,6 +259,17 @@ const TokenMarket: React.FC = () => {
             </Button>
           }
         />
+        <Button
+          onClick={handleExportCSV}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            borderRadius: '6px'
+          }}
+        >
+          ⬇️ Export CSV
+        </Button>
       </div>
 
       {/* 表格 */}
