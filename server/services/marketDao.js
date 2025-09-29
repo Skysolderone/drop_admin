@@ -29,21 +29,31 @@ const MarketDao = {
                 queryParams.push(`%${search.trim()}%`);
             }
             
-            // 主查询：t_wallet_tokens LEFT JOIN t_wallet_pools_base，获取volume_24h和liquidity_usd
-            // 使用GROUP BY去重，选择流动性最大的池子数据
+            // 优化查询：避免OR条件导致索引失效，使用UNION ALL分别查询
             const sql = `
-                SELECT 
+                SELECT
                     t.*,
-                    MAX(p.volume_24h) as pool_volume_24h,
-                    MAX(p.liquidity_usd) as pool_liquidity_usd
+                    COALESCE(pool_data.pool_volume_24h, 0) as pool_volume_24h,
+                    COALESCE(pool_data.pool_liquidity_usd, 0) as pool_liquidity_usd
                 FROM t_wallet_tokens t
-                LEFT JOIN t_wallet_pools_base p ON (
-                    (p.token0_address = t.address OR p.token1_address = t.address)
-                    AND p.status = '1'
-                )
+                LEFT JOIN (
+                    SELECT
+                        token_address,
+                        MAX(volume_24h) as pool_volume_24h,
+                        MAX(liquidity_usd) as pool_liquidity_usd
+                    FROM (
+                        SELECT token0_address as token_address, volume_24h, liquidity_usd
+                        FROM t_wallet_pools_base
+                        WHERE status = '1'
+                        UNION ALL
+                        SELECT token1_address as token_address, volume_24h, liquidity_usd
+                        FROM t_wallet_pools_base
+                        WHERE status = '1'
+                    ) pool_union
+                    GROUP BY token_address
+                ) pool_data ON pool_data.token_address = t.address
                 ${whereClause}
-                GROUP BY t.id
-                ORDER BY t.create_at DESC 
+                ORDER BY t.create_at DESC
                 LIMIT ${safePageSize} OFFSET ${offset}
             `;
             console.log('执行 SQL:', sql);
