@@ -241,6 +241,65 @@ const TokenMarket: React.FC = () => {
     }
   };
 
+  const handleExportAllCSV = async () => {
+    try {
+      message.loading('正在导出全部数据，请稍候...', 0);
+
+      // 获取全部数据进行导出
+      const { data: result } = await api.post('/api/market/list', null, {
+        params: {
+          page: '1',
+          limit: '50000', // 设置大的limit获取全部数据
+          search: search || undefined
+        }
+      });
+
+      const ok = result?.success === true || result?.code === 200;
+      if (!ok) {
+        message.destroy();
+        message.error(result?.msg || result?.message || '获取数据失败');
+        return;
+      }
+
+      const allTokens: any[] = result.data?.tokens || [];
+      console.log('导出数据总数:', allTokens.length);
+
+      const csvData = allTokens.map(token => ({
+        'Name': token.name || '-',
+        'Symbol': token.symbol || '-',
+        'Address': token.address || '-',
+        'Price': token.price || '-',
+        'Liquidity': token.pool_liquidity_usd || token.liq || token.liquidity || '-',
+        'Volume 24h': token.pool_volume_24h || token.vol24 || token.volume_24h || token.volume24h || '-',
+        'Token Create': token.token_create_at ? new Date(token.token_create_at).toLocaleString() : (token.pair_symbol || '-'),
+        'Holders': token.holders || token.holder_count || '-',
+        'Create Time': token.create_time || token.create_at || token.created_at ?
+          new Date(token.create_time || token.create_at || token.created_at).toLocaleString() : '-'
+      }));
+
+      const csvHeaders = Object.keys(csvData[0] || {}).join(',');
+      const csvRows = csvData.map(row => Object.values(row).map(val => `"${val}"`).join(','));
+      const csvContent = [csvHeaders, ...csvRows].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `token_market_all_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      message.destroy();
+      message.success(`CSV文件导出成功！共导出 ${allTokens.length} 条数据`);
+    } catch (error) {
+      message.destroy();
+      console.error('导出CSV失败:', error);
+      message.error('导出CSV文件失败');
+    }
+  };
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6"></h1>
@@ -268,7 +327,19 @@ const TokenMarket: React.FC = () => {
             borderRadius: '6px'
           }}
         >
-          ⬇️ Export CSV
+          ⬇️ Export Current Page
+        </Button>
+        <Button
+          onClick={handleExportAllCSV}
+          type="primary"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            borderRadius: '6px'
+          }}
+        >
+          📊 Export All Data
         </Button>
       </div>
 

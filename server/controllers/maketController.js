@@ -15,7 +15,7 @@ export const getAllTokens = async (req, res) => {
   try {
     const { page = 1, limit = 10, status, search } = req.query;
     const pageIndex = Math.max(0, (parseInt(page) || 1) - 1); // 转换为从0开始的索引
-    const pageSize = Math.max(1, Math.min(100, parseInt(limit) || 10));
+    const pageSize = Math.max(1, Math.min(50000, parseInt(limit) || 10));
 
     console.log(`Controller: page=${page}, limit=${limit}, pageIndex=${pageIndex}, pageSize=${pageSize}, search="${search}"`);
 

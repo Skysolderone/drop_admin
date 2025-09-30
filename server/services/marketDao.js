@@ -15,7 +15,7 @@ const MarketDao = {
         try {
             // 确保参数为正整数
             const safePageIndex = Math.max(0, parseInt(pageIndex) || 0);
-            const safePageSize = Math.max(1, Math.min(100, parseInt(pageSize) || 10)); // 限制最大100条
+            const safePageSize = Math.max(1, Math.min(50000, parseInt(pageSize) || 10)); // 提高限制支持导出全部数据
             const offset = safePageIndex * safePageSize;
             
             console.log(`Fetching market data with pageIndex: ${safePageIndex}, pageSize: ${safePageSize}, offset: ${offset}`);
