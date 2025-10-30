@@ -531,6 +531,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                         imageUrl,
                     };
                 });
+
+                // 当选择支持 airdrop 且有 airdropMethods 时，设置 airdrop_at 为当前时间
+                // 后端会检查如果已存在则不更新
+                if (output.airdropMethods.length > 0) {
+                    output.airdrop_at = new Date().toISOString();
+                }
             }
 
             console.log('Final output to save:', output);

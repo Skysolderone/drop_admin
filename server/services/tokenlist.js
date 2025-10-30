@@ -186,8 +186,14 @@ const TokenList = {
             const remark = data.remark || '';
             const authentication = data.authentication || 0;
 
+            // 处理 airdrop_at：当 airdrop_status 为 1 且有 airdropMethods 时设置为当前时间
+            let airdrop_at = null;
+            if (Number(airdrop_status) === 1 && Array.isArray(data.airdropMethods) && data.airdropMethods.length > 0) {
+                airdrop_at = data.airdrop_at ? new Date(data.airdrop_at) : new Date();
+            }
+
             const now = new Date();
-            const sql = `INSERT INTO t_airdrop_token (\`id\`, \`token_name\`, \`token_symbol\`, \`token_address\`, \`token_desc\`, \`logo\`, \`swap_status\`, \`swap_desc\`, \`no_swap_url\`, \`airdrop_status\`, \`top_status\`, \`hot_status\`, \`priority\`, \`remark\`, \`authentication\`, \`create_at\`, \`update_at\`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            const sql = `INSERT INTO t_airdrop_token (\`id\`, \`token_name\`, \`token_symbol\`, \`token_address\`, \`token_desc\`, \`logo\`, \`swap_status\`, \`swap_desc\`, \`no_swap_url\`, \`airdrop_status\`, \`top_status\`, \`hot_status\`, \`priority\`, \`remark\`, \`authentication\`, \`airdrop_at\`, \`create_at\`, \`update_at\`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
             const params = [
                 id,
                 token_name,
@@ -204,6 +210,7 @@ const TokenList = {
                 priority,
                 remark,
                 authentication,
+                airdrop_at,
                 now,
                 now
             ];
@@ -385,6 +392,10 @@ const TokenList = {
             const idOrAddress = data.id || data.address || data.tokenAddress;
             if (!idOrAddress) throw new Error('缺少主键 id/address');
 
+            // 查询现有的 token 数据，检查 airdrop_at 是否已存在
+            const existingToken = await query('SELECT airdrop_at FROM t_airdrop_token WHERE id = ? LIMIT 1', [idOrAddress]);
+            const existing_airdrop_at = existingToken && existingToken[0] ? existingToken[0].airdrop_at : null;
+
             const token_name = data.name || data.token_name || data.tokenName;
             const token_symbol = data.symbol || data.token_symbol || data.tokenSymbol;
             const token_address = data.token_address || data.tokenAddress || data.address; // 允许修改
@@ -413,6 +424,15 @@ const TokenList = {
             const remark = data.remark;
             const authentication = data.authentication;
 
+            // 处理 airdrop_at：只在以下情况下设置
+            // 1. existing_airdrop_at 为空（从未设置过）
+            // 2. airdrop_status 为 1 且有 airdropMethods
+            let airdrop_at = undefined;
+            if (!existing_airdrop_at && Number(airdrop_status) === 1 && Array.isArray(data.airdropMethods) && data.airdropMethods.length > 0) {
+                airdrop_at = data.airdrop_at ? new Date(data.airdrop_at) : new Date();
+            }
+            // 如果已存在 airdrop_at，则不更新（保持原值）
+
             // 动态构建 SET 子句
             const sets = [];
             const params = [];
@@ -431,6 +451,8 @@ const TokenList = {
             pushSet('priority', priority);
             pushSet('remark', remark);
             pushSet('authentication', authentication);
+            // 只在 airdrop_at 有值且原值为空时才更新
+            pushSet('airdrop_at', airdrop_at);
             // 更新更新时间
             pushSet('update_at', new Date());
 
