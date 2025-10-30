@@ -35,10 +35,10 @@ const TokenList = {
                 conditions.push('(remark IS NULL OR remark != "0")');
             }
 
-            // 搜索条件：模糊查询token_name和token_address字段
+            // 搜索条件：模糊查询token_name、token_symbol和token_address字段
             if (search && search.trim()) {
-                conditions.push('(token_name LIKE ? OR token_address LIKE ?)');
-                params.push(`%${search.trim()}%`, `%${search.trim()}%`);
+                conditions.push('(token_name LIKE ? OR token_symbol LIKE ? OR token_address LIKE ?)');
+                params.push(`%${search.trim()}%`, `%${search.trim()}%`, `%${search.trim()}%`);
             }
 
             if (conditions.length > 0) {
@@ -109,10 +109,10 @@ const TokenList = {
                 conditions.push('(remark IS NULL OR remark != "0")');
             }
 
-            // 搜索条件：模糊查询token_name和token_address字段
+            // 搜索条件：模糊查询token_name、token_symbol和token_address字段
             if (search && search.trim()) {
-                conditions.push('(token_name LIKE ? OR token_address LIKE ?)');
-                params.push(`%${search.trim()}%`, `%${search.trim()}%`);
+                conditions.push('(token_name LIKE ? OR token_symbol LIKE ? OR token_address LIKE ?)');
+                params.push(`%${search.trim()}%`, `%${search.trim()}%`, `%${search.trim()}%`);
             }
 
             if (conditions.length > 0) {
