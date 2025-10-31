@@ -506,7 +506,7 @@ const TokenList: React.FC = () => {
             key: 'action',
             width: 100,
             fixed: 'right' as const,
-            render: (_, record: any) => (
+            render: (_:any, record: any) => (
                 <Space size="small">
                     <Button
                         type="link"

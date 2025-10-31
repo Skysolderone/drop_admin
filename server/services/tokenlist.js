@@ -616,10 +616,11 @@ const TokenList = {
         }
     },
 
-    // 软删除token (设置remark为0)
+    // 软删除token (设置remark为0，同时将swap_status和airdrop_status设置为0)
     softDelete: async (idOrAddress) => {
         try {
-            const sql = 'UPDATE t_airdrop_token SET remark = ? WHERE id = ? OR token_address = ?';
+            // 软删除时，同时将 swap_status 和 airdrop_status 设置为 0（不支持）
+            const sql = 'UPDATE t_airdrop_token SET remark = ?, swap_status = 0, airdrop_status = 0 WHERE id = ? OR token_address = ?';
             console.log('软删除 SQL:', sql, '参数:', ["0", idOrAddress, idOrAddress]);
 
             const result = await query(sql, ["0", idOrAddress, idOrAddress]);
