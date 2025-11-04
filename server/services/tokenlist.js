@@ -433,6 +433,9 @@ const TokenList = {
             }
             // 如果已存在 airdrop_at，则不更新（保持原值）
 
+            // 处理 create_at：如果前端传入了 create_at，则使用前端的值（用于methods新增/删除场景）
+            const create_at = data.create_at ? new Date(data.create_at) : undefined;
+
             // 动态构建 SET 子句
             const sets = [];
             const params = [];
@@ -453,6 +456,8 @@ const TokenList = {
             pushSet('authentication', authentication);
             // 只在 airdrop_at 有值且原值为空时才更新
             pushSet('airdrop_at', airdrop_at);
+            // 如果前端传入了 create_at，则更新（用于methods新增/删除时更新时间戳）
+            pushSet('create_at', create_at);
             // 更新更新时间
             pushSet('update_at', new Date());
 

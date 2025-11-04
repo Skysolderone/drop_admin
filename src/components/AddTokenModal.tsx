@@ -6,16 +6,16 @@ import api from '../lib/axios';
 import { getImageUrl } from '../assets/constants';
 
 // 导入翻译函数
-async function translateText(text: any, targetLanguages: any) {
+async function translateText(text: string, targetLanguages: string[]): Promise<Record<string, string>> {
     const apiKey = "sk-cb616a0c850a4e0c93c84237e7034e59";
     const apiUrl = "https://api.deepseek.com/v1/chat/completions";
     const model = "deepseek-chat";
 
     try {
-        const requests = targetLanguages.map(async (lang:any) => {
+        const requests = targetLanguages.map(async (lang: string): Promise<[string, string]> => {
             const messages = [
                 {
-                    role: "system",
+                    role: "system" as const,
                     content:
                         `你是专业的翻译引擎。请将用户提供的文本准确翻译为目标语言：${lang}。\n` +
                         "要求：\n" +
@@ -25,7 +25,7 @@ async function translateText(text: any, targetLanguages: any) {
                         "4) 若原文已是目标语言，直接原样返回。",
                 },
                 {
-                    role: "user",
+                    role: "user" as const,
                     content: text,
                 },
             ];
@@ -51,8 +51,8 @@ async function translateText(text: any, targetLanguages: any) {
 
         const pairs = await Promise.all(requests);
         return Object.fromEntries(pairs);
-    } catch (error) {
-        const detail = error?.response?.data || error?.message || error;
+    } catch (error: any) {
+        const detail = (error as any)?.response?.data || (error as any)?.message || error;
         console.error("翻译失败:", detail);
         throw error;
     }
@@ -194,7 +194,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     const [airdropSupport, setAirdropSupport] = useState('yes');
     const [saving, setSaving] = useState(false);
     const [tokenPriceCache, setTokenPriceCache] = useState<Record<string, number>>({});
-    const debounceTimersRef = React.useRef<Record<string, NodeJS.Timeout>>({});
+    const debounceTimersRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
     const [translating, setTranslating] = useState(false);
     // Tabs 受控，防止某些环境下 TabHeader 使用 <a> 导致浏览器跳转
     const [activeTabKey, setActiveTabKey] = useState<'basic' | 'swap' | 'airdrop'>(defaultTabKey ?? 'basic');
@@ -217,6 +217,8 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
     const [duplicateTokenInfo, setDuplicateTokenInfo] = useState<{name: string, isDeleted: boolean} | null>(null);
     // 存储创建的对象URL，用于清理
     const objectUrlsRef = React.useRef<Set<string>>(new Set());
+    // 跟踪初始的airdropMethods数量，用于判断是否有新增或删除
+    const [initialMethodsCount, setInitialMethodsCount] = useState<number>(0);
     // 全部国家清单（对象结构），表单值仍使用代码数组
     const ALL_COUNTRIES = [
         { code: 'US', name: '美国' },
@@ -536,6 +538,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 // 后端会检查如果已存在则不更新
                 if (output.airdropMethods.length > 0) {
                     output.airdrop_at = new Date().toISOString();
+                }
+
+                // 如果是编辑模式且methods数量发生变化（新增或删除），更新create_at为当前时间
+                if (mode === 'edit' && output.airdropMethods.length !== initialMethodsCount) {
+                    output.create_at = new Date().toISOString();
+                    console.log(`Methods数量变化: ${initialMethodsCount} -> ${output.airdropMethods.length}, 更新create_at`);
                 }
             }
 
@@ -974,6 +982,8 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 // 重置地址检查状态
                 setAddressCheckStatus(null);
                 setDuplicateTokenInfo(null);
+                // 重置初始methods数量
+                setInitialMethodsCount(0);
                 // 重置到默认tab
                 setActiveTabKey(defaultTabKey ?? 'basic');
                 return;
@@ -1117,7 +1127,12 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                         };
                     });
                     form.setFieldsValue({ airdropMethods: mapped });
+                    // 保存初始的methods数量，用于后续判断是否有新增或删除
+                    setInitialMethodsCount(mapped.length);
                 }).catch(() => {/* ignore */ });
+            } else if (mode === 'edit') {
+                // 如果是编辑模式但没有方法数据，设置初始数量为0
+                setInitialMethodsCount(0);
             }
         }
     }, [visible, initialValues, mode, defaultTabKey]);
