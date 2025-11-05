@@ -540,10 +540,10 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                     output.airdrop_at = new Date().toISOString();
                 }
 
-                // 如果是编辑模式且methods数量发生变化（新增或删除），更新create_at为当前时间
-                if (mode === 'edit' && output.airdropMethods.length !== initialMethodsCount) {
+                // 如果是编辑模式且methods数量增加（新增了method），更新create_at为当前时间
+                if (mode === 'edit' && output.airdropMethods.length > initialMethodsCount) {
                     output.create_at = new Date().toISOString();
-                    console.log(`Methods数量变化: ${initialMethodsCount} -> ${output.airdropMethods.length}, 更新create_at`);
+                    console.log(`新增Methods: ${initialMethodsCount} -> ${output.airdropMethods.length}, 更新create_at`);
                 }
             }
 
