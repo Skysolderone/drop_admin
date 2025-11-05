@@ -424,17 +424,21 @@ const TokenList = {
             const remark = data.remark;
             const authentication = data.authentication;
 
-            // 处理 airdrop_at：只在以下情况下设置
-            // 1. existing_airdrop_at 为空（从未设置过）
-            // 2. airdrop_status 为 1 且有 airdropMethods
+            // 处理 airdrop_at：
+            // 1. 如果前端传入了 force_update_airdrop_at 标记（新增了method），强制更新
+            // 2. 如果 existing_airdrop_at 为空（从未设置过）且 airdrop_status 为 1 且有 airdropMethods，则设置
+            // 3. 其他情况不更新（保持原值）
             let airdrop_at = undefined;
-            if (!existing_airdrop_at && Number(airdrop_status) === 1 && Array.isArray(data.airdropMethods) && data.airdropMethods.length > 0) {
+            if (data.force_update_airdrop_at && Number(airdrop_status) === 1 && Array.isArray(data.airdropMethods) && data.airdropMethods.length > 0) {
+                // 强制更新模式：新增了method
                 airdrop_at = data.airdrop_at ? new Date(data.airdrop_at) : new Date();
+                console.log('强制更新 airdrop_at (新增了method):', airdrop_at);
+            } else if (!existing_airdrop_at && Number(airdrop_status) === 1 && Array.isArray(data.airdropMethods) && data.airdropMethods.length > 0) {
+                // 首次设置
+                airdrop_at = data.airdrop_at ? new Date(data.airdrop_at) : new Date();
+                console.log('首次设置 airdrop_at:', airdrop_at);
             }
-            // 如果已存在 airdrop_at，则不更新（保持原值）
-
-            // 处理 create_at：如果前端传入了 create_at，则使用前端的值（用于methods新增/删除场景）
-            const create_at = data.create_at ? new Date(data.create_at) : undefined;
+            // 如果已存在 airdrop_at 且没有强制更新标记，则不更新（保持原值）
 
             // 动态构建 SET 子句
             const sets = [];
@@ -454,10 +458,8 @@ const TokenList = {
             pushSet('priority', priority);
             pushSet('remark', remark);
             pushSet('authentication', authentication);
-            // 只在 airdrop_at 有值且原值为空时才更新
+            // 更新 airdrop_at（如果有值）
             pushSet('airdrop_at', airdrop_at);
-            // 如果前端传入了 create_at，则更新（用于methods新增/删除时更新时间戳）
-            pushSet('create_at', create_at);
             // 更新更新时间
             pushSet('update_at', new Date());
 

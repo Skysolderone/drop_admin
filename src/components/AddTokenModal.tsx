@@ -535,15 +535,17 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                 });
 
                 // 当选择支持 airdrop 且有 airdropMethods 时，设置 airdrop_at 为当前时间
-                // 后端会检查如果已存在则不更新
+                // 如果是编辑模式且methods数量增加（新增了method），强制更新airdrop_at为当前时间
                 if (output.airdropMethods.length > 0) {
-                    output.airdrop_at = new Date().toISOString();
-                }
-
-                // 如果是编辑模式且methods数量增加（新增了method），更新create_at为当前时间
-                if (mode === 'edit' && output.airdropMethods.length > initialMethodsCount) {
-                    output.create_at = new Date().toISOString();
-                    console.log(`新增Methods: ${initialMethodsCount} -> ${output.airdropMethods.length}, 更新create_at`);
+                    if (mode === 'edit' && output.airdropMethods.length > initialMethodsCount) {
+                        // 新增了method，强制更新airdrop_at
+                        output.airdrop_at = new Date().toISOString();
+                        output.force_update_airdrop_at = true; // 添加标记，告诉后端强制更新
+                        console.log(`新增Methods: ${initialMethodsCount} -> ${output.airdropMethods.length}, 强制更新airdrop_at`);
+                    } else {
+                        // 正常情况，后端会检查如果已存在则不更新
+                        output.airdrop_at = new Date().toISOString();
+                    }
                 }
             }
 
