@@ -151,6 +151,7 @@ const TokenList: React.FC = () => {
                 } else {
                     message.error(result.message || '添加失败');
                 }
+                return result; // 返回结果给 AddTokenModal
             } else if (modalMode === 'edit' && editingToken) {
                 const updateData = { ...values, id: editingToken.id };
                 const { data: result } = await api.put(`/api/tokens/tokenlists/${editingToken.id}`, updateData);
@@ -165,10 +166,12 @@ const TokenList: React.FC = () => {
                 } else {
                     message.error(result.message || '更新失败');
                 }
+                return result; // 返回结果给 AddTokenModal
             }
         } catch (error: any) {
             console.error('保存代币错误:', error);
             message.error(error?.response?.data?.message || error?.message || '保存失败');
+            throw error; // 抛出错误让 AddTokenModal 能捕获
         }
     };
 

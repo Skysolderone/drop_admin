@@ -555,9 +555,64 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
             
             setSaving(true);
             const res = await onSave(output);
+            
+            console.log('=== onSave 返回结果 ===');
+            console.log('res:', res);
+            console.log('res.code:', res?.code);
+            console.log('res.status:', res?.status);
+            console.log('res.data:', res?.data);
+            console.log('res.data?.code:', res?.data?.code);
+            console.log('=====================');
+            
             const code = (res && (res.code ?? res.status ?? res?.data?.code)) as number | undefined;
             const ok = code === 200;
+            
+            console.log('Calculated code:', code);
+            console.log('Calculated ok:', ok);
+            
             if (ok) {
+                // 保存成功后，检查是否需要调用 airdropNew 接口
+                const shouldCallAirdropNew = 
+                    (mode === 'add' && airdropSupport === 'yes' && output.airdropMethods && output.airdropMethods.length > 0) || // 新增token且有airdrop方法
+                    (mode === 'edit' && output.force_update_airdrop_at === true); // 编辑模式且新增了method
+
+                console.log('=== airdropNew 调用检查 ===');
+                console.log('mode:', mode);
+                console.log('airdropSupport:', airdropSupport);
+                console.log('output.airdropMethods:', output.airdropMethods);
+                console.log('output.force_update_airdrop_at:', output.force_update_airdrop_at);
+                console.log('shouldCallAirdropNew:', shouldCallAirdropNew);
+                console.log('========================');
+
+                if (shouldCallAirdropNew) {
+                    try {
+                        // 获取 token id 和 address
+                        const tokenId = res?.data?.id || initialValues?.id || initialValues?.token_id;
+                        const tokenAddress = output.tokenAddress || initialValues?.tokenAddress || initialValues?.address;
+                        
+                        if (tokenId && tokenAddress) {
+                            const requestUrl = '/v2/system/airdropNew';
+                            const fullUrl = `${window.location.origin}${requestUrl}`;
+                            console.log('=== airdropNew 接口调用详情 ===');
+                            console.log('请求路径:', requestUrl);
+                            console.log('完整URL:', fullUrl);
+                            console.log('请求参数:', { id: tokenId, address: tokenAddress });
+                            console.log('==============================');
+                            
+                            await api.post(requestUrl, {
+                                id: tokenId,
+                                address: tokenAddress
+                            });
+                            console.log('airdropNew 接口调用成功');
+                        } else {
+                            console.warn('无法调用 airdropNew 接口: 缺少 id 或 address', { tokenId, tokenAddress });
+                        }
+                    } catch (error) {
+                        console.error('调用 airdropNew 接口失败:', error);
+                        // 不影响主流程，只记录错误
+                    }
+                }
+
                 // 成功：清空并关闭
                 cleanupObjectUrls();
                 form.resetFields();

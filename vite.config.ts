@@ -13,33 +13,38 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
-   server: {
-    host: '0.0.0.0',
-    allowedHosts: true,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        // 若后端不带 /api 前缀可开启重写：
-        // rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-      '/v1': {
-        target:  'http://drop-api-py:9393',
-        changeOrigin: true,
-      },
-      '/uploads': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
-      '/uploadurlpic': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
-      '/uploadsurlpic': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
+    plugins: [react()],
+    server: {
+        host: '0.0.0.0',
+        allowedHosts: true,
+        proxy: {
+            '/api': {
+                target: 'http://localhost:3001',
+                changeOrigin: true,
+                // 若后端不带 /api 前缀可开启重写：
+                // rewrite: (path) => path.replace(/^\/api/, ''),
+            },
+            '/v1': {
+                target: 'http://worldchain_drop_api:9393',
+                // target:  'http://drop-api-py:9393',
+                changeOrigin: true,
+            },
+            '/uploads': {
+                target: 'http://localhost:3001',
+                changeOrigin: true,
+            },
+            '/uploadurlpic': {
+                target: 'http://localhost:3001',
+                changeOrigin: true,
+            },
+            '/v2': {
+                target: 'http://localhost:9091',
+                changeOrigin: true,
+            },
+            '/uploadsurlpic': {
+                target: 'http://localhost:3001',
+                changeOrigin: true,
+            },
+        },
     },
-  },
 })

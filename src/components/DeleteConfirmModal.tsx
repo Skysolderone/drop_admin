@@ -1,4 +1,4 @@
-import React from 'react';
+ import React from 'react';
 import { Button } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 
@@ -81,7 +81,7 @@ const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
                 </div>
             </div>
 
-            <style jsx>{`
+            <style>{`
                 @keyframes fadeIn {
                     from {
                         opacity: 0;

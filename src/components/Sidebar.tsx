@@ -6,46 +6,66 @@ import type { MenuProps } from 'antd';
 type MenuItem = Required<MenuProps>['items'][number];
 
 const Sidebar: React.FC = () => {
-  const location = useLocation();
-  const [openKeys, setOpenKeys] = useState<string[]>(['token']);
+    const location = useLocation();
+    const [openKeys, setOpenKeys] = useState<string[]>(['token']);
 
-  const items: MenuItem[] = [
-    {
-      key: '/',
-      label: <Link to="/">Home</Link>,
-    },
-    {
-      key: 'token',
-      label: 'Token',
-      children: [
+    const items: MenuItem[] = [
         {
-          key: '/token-list',
-          label: <Link to="/token-list">Token List</Link>,
+            key: '/',
+            label: <Link to="/">Home</Link>,
         },
         {
-          key: '/token-market',
-          label: <Link to="/token-market">Token Market Info</Link>,
+            key: 'token',
+            label: 'Token',
+            children: [
+                {
+                    key: '/token-list',
+                    label: <Link to="/token-list">Token List</Link>,
+                },
+                {
+                    key: '/token-market',
+                    label: <Link to="/token-market">Token Market Info</Link>,
+                },
+            ],
         },
-      ],
-    },
-  ];
+        {
+            key:'banner',
+            label: 'Banner',
+            children: [
+                {
+                    key: '/banner-list',
+                    label: <Link to="/banner-list">Banner List</Link>,
+                },
+            ],
+        },
+        {
+            key:'popup',
+            label: 'Pop-up',
+            children: [
+                {
+                    key: '/popup-list',
+                    label: <Link to="/popup-list">Pop-up List</Link>,
+                },
+            ],
+        }
+    ];
 
-  const onOpenChange = (keys: string[]) => {
-    setOpenKeys(keys);
-  };
+    const onOpenChange = (keys: string[]) => {
+        setOpenKeys(keys);
+    };
 
-  return (
-    <div className="sidebar">
-      <Menu
-        mode="inline"
-        openKeys={openKeys}
-        onOpenChange={onOpenChange}
-        selectedKeys={[location.pathname]}
-        style={{ height: '100%', borderRight: 0 }}
-        items={items}
-      />
-    </div>
-  );
+    return (
+        <div className="sidebar">
+            <Menu
+                mode="inline"
+                openKeys={openKeys}
+                onOpenChange={onOpenChange}
+                selectedKeys={[location.pathname]}
+                style={{ height: '100%', borderRight: 0 }}
+                items={items}
+            />
+        </div>
+    );
 };
 
 export default Sidebar;

@@ -11,6 +11,8 @@ const About = React.lazy(() => import('../pages/About'));
 const Contact = React.lazy(() => import('../pages/Contact'));
 const TokenList = React.lazy(() => import('../pages/TokenList'));
 const TokenMarket = React.lazy(() => import('../pages/TokenMarket'));
+const BannerList = React.lazy(() => import('../pages/BannerList'));
+const PopupList = React.lazy(() => import('../pages/PopupList'));
 const Login = React.lazy(() => import('../pages/Login'));
 const NotFound = React.lazy(() => import('../pages/NotFound'));
 
@@ -73,6 +75,22 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<LoadingSpinner />}>
             <TokenMarket />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'banner-list',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <BannerList />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'popup-list',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <PopupList />
           </Suspense>
         ),
       },

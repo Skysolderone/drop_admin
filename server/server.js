@@ -9,9 +9,12 @@ import path from 'path';
 import { initDatabase, testConnection } from './config/database.js';
 
 // 导入路由
-import authRoutes from './routes/auth.js'; //OK 
+import authRoutes from './routes/auth.js'; //OK
 import marketRoutes from './routes/market.js'; //OK
 import tokenRoutes from './routes/tokens.js';
+import bannerRoutes from './routes/banners.js';
+import popupRoutes from './routes/popup.js';
+import configRoutes from './routes/config.js';
 
 // 加载环境变量
 dotenv.config();
@@ -210,6 +213,9 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/tokens', tokenRoutes);
 app.use('/api/market', marketRoutes);
+app.use('/api/banners', bannerRoutes);
+app.use('/api/popup', popupRoutes);
+app.use('/api/config', configRoutes);
 
 // 根路径
 app.get('/', (req, res) => {
