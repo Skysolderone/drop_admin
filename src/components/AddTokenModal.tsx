@@ -599,16 +599,26 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({ visible, onCancel, onSave
                             console.log('请求参数:', { id: tokenId, address: tokenAddress });
                             console.log('==============================');
                             
-                            await api.post(requestUrl, {
+                            const airdropResponse = await api.post(requestUrl, {
                                 id: tokenId,
                                 address: tokenAddress
                             });
-                            console.log('airdropNew 接口调用成功');
+                            console.log('airdropNew 接口调用成功, 响应:', airdropResponse?.data);
                         } else {
                             console.warn('无法调用 airdropNew 接口: 缺少 id 或 address', { tokenId, tokenAddress });
                         }
-                    } catch (error) {
-                        console.error('调用 airdropNew 接口失败:', error);
+                    } catch (error: any) {
+                        console.error('=== airdropNew 接口调用失败 ===');
+                        console.error('错误信息:', error?.message);
+                        console.error('错误响应:', error?.response?.data);
+                        console.error('状态码:', error?.response?.status);
+                        console.error('完整错误:', error);
+                        console.error('================================');
+                        
+                        // 如果是record not found错误，给出友好提示
+                        if (error?.response?.data?.message === 'record not found') {
+                            console.warn('提示: Go服务在数据库中未找到该token记录，可能需要同步数据');
+                        }
                         // 不影响主流程，只记录错误
                     }
                 }

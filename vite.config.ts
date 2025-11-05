@@ -38,7 +38,7 @@ export default defineConfig({
                 changeOrigin: true,
             },
             '/v2': {
-                target: 'http://localhost:9091',
+                target: 'http://dropwallet_go_api:9091',
                 changeOrigin: true,
             },
             '/uploadsurlpic': {
