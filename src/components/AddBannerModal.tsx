@@ -26,6 +26,8 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [fileList, setFileList] = useState<UploadFile[]>([]);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [jumpType, setJumpType] = useState<string>('外部应用'); // 跟踪跳转类型状态
     
     // 国际化相关状态
     const [i18nModalVisible, setI18nModalVisible] = useState(false);
@@ -43,6 +45,7 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
             // 模态框关闭时重置所有状态
             form.resetFields();
             setFileList([]);
+            setJumpType('外部应用');
             setI18nData({
                 mainTitle: {},
                 subTitle: {},
@@ -58,14 +61,20 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
             // 映射 jumpType: 从数字或英文转换为中文
             let jumpTypeValue = '外部应用'; // 默认
             const jumpType = initialValues.jumpType || initialValues.jump_type;
+            const jumpNei = initialValues.jump_nei; // 检查是否有jump_nei字段
 
-            if (jumpType === 1 || jumpType === '应用内页面' || jumpType === 'In-App Page') {
+            // 如果存在jump_nei字段且有值，说明是应用内页面
+            if (jumpNei) {
+                jumpTypeValue = '应用内页面';
+            } else if (jumpType === 1 || jumpType === '应用内页面' || jumpType === 'In-App Page') {
                 jumpTypeValue = '应用内页面';
             } else if (jumpType === 2 || jumpType === '外部应用' || jumpType === 'External App') {
                 jumpTypeValue = '外部应用';
             } else if (jumpType === 3 || jumpType === 'Stocks') {
                 jumpTypeValue = 'Stocks';
             }
+
+            console.log('解析后的jumpTypeValue:', jumpTypeValue, 'jump_nei:', jumpNei);
 
             // 处理 allowDevices: 从数字转换为数组
             let allowDevicesValue = ['android', 'ios']; // 默认全部
@@ -93,6 +102,7 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
                 subTitle: initialValues.subTitle || initialValues.sub_title || initialValues.title,
                 buttonText: initialValues.buttonText || initialValues.button_text || initialValues.btn_text,
                 jumpType: jumpTypeValue,
+                jumpPage: initialValues.jumpPage || initialValues.jump_page || initialValues.jump_nei, // 从jump_nei字段读取
                 jumpUrl: initialValues.jumpUrl || initialValues.jump_url || initialValues.jump_link,
                 priority: initialValues.priority,
                 isActive: isActiveValue,
@@ -101,6 +111,9 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
             };
 
             console.log('准备设置的表单数据:', formData);
+
+            // 设置jumpType状态
+            setJumpType(jumpTypeValue);
 
             // 使用 requestAnimationFrame 确保 DOM 更新后再设置值
             requestAnimationFrame(() => {
@@ -129,6 +142,7 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
             }
         } else {
             // 添加模式，设置默认值
+            setJumpType('外部应用');
             requestAnimationFrame(() => {
                 form.setFieldsValue({
                     priority: 1,
@@ -277,6 +291,13 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
 
             // 添加国际化数据
             values.i18n = i18nData;
+
+            // 将jumpPage映射为jump_nei保存到数据库
+            if (values.jumpPage) {
+                values.jump_nei = values.jumpPage;
+            }
+
+            console.log('提交的数据:', values);
 
             await onSave(values);
         } catch (error) {
@@ -471,25 +492,55 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
                     name="jumpType"
                     rules={[{ required: true, message: '请选择跳转类型！' }]}
                 >
-                    <Select placeholder="请选择跳转类型">
+                    <Select 
+                        placeholder="请选择跳转类型"
+                        onChange={(value) => {
+                            setJumpType(value);
+                            // 当切换跳转类型时，清空跳转页面的值
+                            if (value !== '应用内页面') {
+                                form.setFieldsValue({ jumpPage: undefined });
+                            }
+                        }}
+                    >
                         <Option value="应用内页面">应用内页面</Option>
                         <Option value="外部应用">外部应用</Option>
-                        <Option value="Stocks">Stocks</Option>
                     </Select>
                 </Form.Item>
 
-                <p style={{color:'red',opacity:'0.7'}}>应用内部页面跳转或Stocks，url需要填入1或3，外部应用需要填入完整url</p>
+                {/* 只有选择"应用内页面"时才显示跳转页面选择 */}
+                <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.jumpType !== currentValues.jumpType}>
+                    {({ getFieldValue }) => {
+                        const currentJumpType = getFieldValue('jumpType');
+                        return currentJumpType === '应用内页面' ? (
+                            <Form.Item
+                                label="跳转页面"
+                                name="jumpPage"
+                                rules={[{ required: true, message: '请选择跳转页面！' }]}
+                            >
+                                <Select placeholder="请选择跳转页面">
+                                    <Option value="Swap">Swap</Option>
+                                    <Option value="Airdrop">Airdrop</Option>
+                                    <Option value="Pay">Pay</Option>
+                                    <Option value="Checkin">Checkin</Option>
+                                    <Option value="Stocks">Stocks</Option>
+                                </Select>
+                            </Form.Item>
+                        ) : null;
+                    }}
+                </Form.Item>
+
+                {/* <p style={{color:'red',opacity:'0.7'}}>应用内部页面跳转或Stocks，url需要填入1或3，外部应用需要填入完整url</p> */}
                 
                 <Form.Item
-                    label="跳转"
+                    label="跳转链接"
                     name="jumpUrl"
                     rules={[{ required: true, message: '请输入跳转地址！' }]}
                 >
-                    <Input placeholder="请输入" />
+                    <Input placeholder="应用内页面请填入页面标识，外部应用请填入完整URL" />
                 </Form.Item>
 
                 <Form.Item
-                    label="排序(1-999数字越小小显示越前)"
+                    label="排序(1-999数字越小显示越前)"
                     name="priority"
                     rules={[{ required: true, message: '请输入排序数字！' }]}
                 >

@@ -73,6 +73,7 @@ router.get('/', async (req, res) => {
         button_text: banner.button_txt,
         priority: banner.priority,
         jump_type: banner.jump_type,
+        jump_nei: banner.jump_nei, // 添加jump_nei字段
         jump_url: banner.jump_link,
         is_active: banner.invalid,
         image: banner.banner_img,
@@ -158,6 +159,7 @@ router.get('/:id', async (req, res) => {
         button_text: banner.button_txt,
         priority: banner.priority,
         jump_type: banner.jump_type,
+        jump_nei: banner.jump_nei, // 添加jump_nei字段
         jump_url: banner.jump_link,
         invalid: banner.invalid,
         image: banner.banner_img,
@@ -185,6 +187,7 @@ router.post('/', async (req, res) => {
       buttonText,
       priority,
       jumpType,
+      jump_nei,
       jumpUrl,
       isActive,
       image,
@@ -234,14 +237,15 @@ router.post('/', async (req, res) => {
     // 插入数据
     const [result] = await pool.query(
       `INSERT INTO t_home_banner
-        (main_title, title, button_txt, priority, jump_type, jump_link, invalid, banner_img, devices, create_at, update_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        (main_title, title, button_txt, priority, jump_type, jump_nei, jump_link, invalid, banner_img, devices, create_at, update_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         mainTitle,
         subTitle || '',
         buttonText,
         priority || 1,
         jumpTypeValue,
+        jump_nei || null,
         jumpUrl,
         invalidValue,
         image,
@@ -299,6 +303,7 @@ router.put('/:id', async (req, res) => {
       buttonText,
       priority,
       jumpType,
+      jump_nei,
       jumpUrl,
       isActive,
       image,
@@ -340,7 +345,7 @@ router.put('/:id', async (req, res) => {
     await pool.query(
       `UPDATE t_home_banner
       SET main_title = ?, title = ?, button_txt = ?, priority = ?,
-          jump_type = ?, jump_link = ?, invalid = ?, banner_img = ?,
+          jump_type = ?, jump_nei = ?, jump_link = ?, invalid = ?, banner_img = ?,
           devices = ?, update_at = NOW()
       WHERE id = ?`,
       [
@@ -349,6 +354,7 @@ router.put('/:id', async (req, res) => {
         buttonText,
         priority || 1,
         jumpTypeValue,
+        jump_nei || null,
         jumpUrl,
         invalidValue,
         image,
