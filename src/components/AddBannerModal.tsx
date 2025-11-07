@@ -529,14 +529,20 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
                     }}
                 </Form.Item>
 
-                {/* <p style={{color:'red',opacity:'0.7'}}>应用内部页面跳转或Stocks，url需要填入1或3，外部应用需要填入完整url</p> */}
-                
-                <Form.Item
-                    label="跳转链接"
-                    name="jumpUrl"
-                    rules={[{ required: true, message: '请输入跳转地址！' }]}
-                >
-                    <Input placeholder="应用内页面请填入页面标识，外部应用请填入完整URL" />
+                {/* 只有选择"外部应用"时才显示跳转链接 */}
+                <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.jumpType !== currentValues.jumpType}>
+                    {({ getFieldValue }) => {
+                        const currentJumpType = getFieldValue('jumpType');
+                        return currentJumpType === '外部应用' ? (
+                            <Form.Item
+                                label="跳转链接"
+                                name="jumpUrl"
+                                rules={[{ required: true, message: '请输入完整URL地址！' }]}
+                            >
+                                <Input placeholder="请填入完整URL（例如：https://example.com）" />
+                            </Form.Item>
+                        ) : null;
+                    }}
                 </Form.Item>
 
                 <Form.Item

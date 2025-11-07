@@ -403,12 +403,21 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
                         ) : null;
                     }}
                 </Form.Item>
-                <Form.Item
-                    label="跳转"
-                    name="jumpUrl"
-                    rules={[{ required: true, message: '请输入跳转地址！' }]}
-                >
-                    <Input placeholder="请输入" style={{ width: '50%' }} />
+
+                {/* 只有选择"外部应用"时才显示跳转链接 */}
+                <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.jumpType !== currentValues.jumpType}>
+                    {({ getFieldValue }) => {
+                        const currentJumpType = getFieldValue('jumpType');
+                        return currentJumpType === '外部应用' ? (
+                            <Form.Item
+                                label="跳转链接"
+                                name="jumpUrl"
+                                rules={[{ required: true, message: '请输入完整URL地址！' }]}
+                            >
+                                <Input placeholder="请填入完整URL（例如：https://example.com）" style={{ width: '50%' }} />
+                            </Form.Item>
+                        ) : null;
+                    }}
                 </Form.Item>
 
                 <Form.Item
