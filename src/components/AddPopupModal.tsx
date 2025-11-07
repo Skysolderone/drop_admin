@@ -31,7 +31,7 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
         if (visible) {
             if (mode === 'edit' && initialValues) {
                 console.log('编辑模式 - 接收到的数据:', initialValues);
-                
+
                 // 处理 allowDevices: 确保是数组格式
                 let allowDevicesValue = ['android', 'ios']; // 默认全选
                 if (initialValues.allowDevices) {
@@ -52,21 +52,37 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
                     }
                 }
 
+                // 处理 jumpType: 根据jump_nei字段判断
+                let jumpTypeValue = '外部应用'; // 默认
+                const jumpNei = initialValues.jump_nei; // 检查是否有jump_nei字段
+                
+                // 如果存在jump_nei字段且有值，说明是应用内页面
+                if (jumpNei) {
+                    jumpTypeValue = '应用内页面';
+                } else if (initialValues.jumpType === 1 || initialValues.jumpType === '应用内页面' || initialValues.jumpType === 'In-App Page') {
+                    jumpTypeValue = '应用内页面';
+                } else if (initialValues.jumpType === 2 || initialValues.jumpType === '外部应用' || initialValues.jumpType === 'External App') {
+                    jumpTypeValue = '外部应用';
+                }
+
+                console.log('解析后的jumpTypeValue:', jumpTypeValue, 'jump_nei:', jumpNei);
+
                 // 编辑模式，填充现有数据
                 const formData = {
                     popupName: initialValues.popupName,
                     priority: initialValues.priority,
-                    jumpType: initialValues.jumpType,
+                    jumpType: jumpTypeValue,
+                    jumpPage: initialValues.jumpPage || initialValues.jump_page || initialValues.jump_nei, // 从jump_nei读取
                     jumpUrl: initialValues.jumpUrl,
                     isActive: initialValues.isActive,
                     allowDevices: allowDevicesValue,
                     image: initialValues.image,
                 };
-                
+
                 console.log('准备设置的表单数据:', formData);
-                
+
                 form.setFieldsValue(formData);
-                
+
                 console.log('表单当前值:', form.getFieldsValue());
 
                 // 如果有现有图片，设置到文件列表中
@@ -153,11 +169,11 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
                         }
                     }
                 });
-                
+
                 if (res.data.code === 200) {
                     message.success('图片上传成功！');
                     const uploadedUrl = res.data.data.url;
-                    
+
                     // 更新文件列表
                     setFileList([{
                         uid: file.uid,
@@ -166,10 +182,10 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
                         url: uploadedUrl,
                         response: { data: { url: uploadedUrl } }
                     }]);
-                    
+
                     // 将上传成功的文件路径设置到表单中
                     form.setFieldsValue({ image: uploadedUrl });
-                    
+
                     if (onSuccess) {
                         onSuccess({ data: { url: uploadedUrl } }, file);
                     }
@@ -195,7 +211,7 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
         try {
             setLoading(true);
             const values = await form.validateFields();
-            
+
             // 获取上传的图片路径
             const imageFile = fileList.find(file => file.status === 'done');
             if (imageFile) {
@@ -220,6 +236,13 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
                     values.allowDevices = 'all';
                 }
             }
+
+            // 将jumpPage映射为jump_nei保存到数据库
+            if (values.jumpPage) {
+                values.jump_nei = values.jumpPage;
+            }
+
+            console.log('提交的数据:', values);
 
             await onSave(values);
         } catch (error) {
@@ -341,10 +364,10 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
                     name="priority"
                     rules={[{ required: true, message: '请输入排序数字！' }]}
                 >
-                    <InputNumber 
-                        min={1} 
-                        max={999} 
-                        placeholder="请输入排序数字，数字越小排序越靠前" 
+                    <InputNumber
+                        min={1}
+                        max={999}
+                        placeholder="请输入排序数字，数字越小排序越靠前"
                         style={{ width: '100%' }}
                     />
                 </Form.Item>
@@ -357,10 +380,29 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
                     <Select placeholder="请选择跳转类型" style={{ width: '50%' }}>
                         <Option value="应用内页面">应用内页面</Option>
                         <Option value="外部应用">外部应用</Option>
-                        <Option value="Stocks">Stocks</Option>
                     </Select>
                 </Form.Item>
-
+                {/* 只有选择"应用内页面"时才显示跳转页面选择 */}
+                <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.jumpType !== currentValues.jumpType}>
+                    {({ getFieldValue }) => {
+                        const currentJumpType = getFieldValue('jumpType');
+                        return currentJumpType === '应用内页面' ? (
+                            <Form.Item
+                                label="跳转页面"
+                                name="jumpPage"
+                                rules={[{ required: true, message: '请选择跳转页面！' }]}
+                            >
+                                <Select placeholder="请选择跳转页面">
+                                    <Option value="Swap">Swap</Option>
+                                    <Option value="Airdrop">Airdrop</Option>
+                                    <Option value="Pay">Pay</Option>
+                                    <Option value="Checkin">Checkin</Option>
+                                    <Option value="Stocks">Stocks</Option>
+                                </Select>
+                            </Form.Item>
+                        ) : null;
+                    }}
+                </Form.Item>
                 <Form.Item
                     label="跳转"
                     name="jumpUrl"

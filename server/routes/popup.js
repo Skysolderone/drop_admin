@@ -44,6 +44,7 @@ router.get('/', async (req, res) => {
       image: popup.img,
       priority: popup.sort,
       jumpType: popup.jump_type,
+      jump_nei: popup.jump_nei, // 添加jump_nei字段
       jumpUrl: popup.jump_link,
       isActive: popup.effective,
       allowDevices: popup.devuces,
@@ -97,6 +98,7 @@ router.get('/:id', async (req, res) => {
       image: popup.img,
       priority: popup.sort,
       jumpType: popup.jump_type,
+      jump_nei: popup.jump_nei, // 添加jump_nei字段
       jumpUrl: popup.jump_link,
       isActive: popup.effective,
       allowDevices: popup.devuces,
@@ -127,6 +129,7 @@ router.post('/', async (req, res) => {
       image,
       priority,
       jumpType,
+      jump_nei,
       jumpUrl,
       isActive,
       allowDevices,
@@ -166,13 +169,14 @@ router.post('/', async (req, res) => {
     // 插入数据
     const [result] = await pool.query(
       `INSERT INTO t_home_popup
-        (name, img, sort, jump_type, jump_link, effective, devuces, create_at, update_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        (name, img, sort, jump_type, jump_nei, jump_link, effective, devuces, create_at, update_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         popupName,
         image,
         priority || 1,
         jumpTypeValue,
+        jump_nei || null,
         jumpUrl,
         effectiveValue,
         devicesValue,
@@ -205,6 +209,7 @@ router.put('/:id', async (req, res) => {
       image,
       priority,
       jumpType,
+      jump_nei,
       jumpUrl,
       isActive,
       allowDevices,
@@ -243,7 +248,7 @@ router.put('/:id', async (req, res) => {
 
     await pool.query(
       `UPDATE t_home_popup
-      SET name = ?, img = ?, sort = ?, jump_type = ?, jump_link = ?,
+      SET name = ?, img = ?, sort = ?, jump_type = ?, jump_nei = ?, jump_link = ?,
           effective = ?, devuces = ?, update_at = NOW()
       WHERE id = ?`,
       [
@@ -251,6 +256,7 @@ router.put('/:id', async (req, res) => {
         image,
         priority || 1,
         jumpTypeValue,
+        jump_nei || null,
         jumpUrl,
         effectiveValue,
         devicesValue,
