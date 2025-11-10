@@ -143,6 +143,21 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // 如果是应用内页面，使用 jump_nei；否则必须有 jumpUrl
+    if (jumpType === '应用内页面' && !jump_nei) {
+      return res.status(400).json({
+        code: 400,
+        message: '应用内页面必须选择跳转页面'
+      });
+    }
+
+    if (jumpType !== '应用内页面' && !jumpUrl) {
+      return res.status(400).json({
+        code: 400,
+        message: '外部应用必须填写跳转链接'
+      });
+    }
+
     // 处理 jumpType: 应用内页面=1, 外部应用=2, Stocks=3
     let jumpTypeValue = 2; // 默认外部应用
     if (jumpType === '应用内页面' || jumpType === 'In-App Page' || jumpType === 1) {
@@ -177,7 +192,7 @@ router.post('/', async (req, res) => {
         priority || 1,
         jumpTypeValue,
         jump_nei || null,
-        jumpUrl,
+        jumpUrl || null, // 应用内页面时可以为 null
         effectiveValue,
         devicesValue,
       ]
@@ -223,6 +238,21 @@ router.put('/:id', async (req, res) => {
       });
     }
 
+    // 如果是应用内页面，使用 jump_nei；否则必须有 jumpUrl
+    if (jumpType === '应用内页面' && !jump_nei) {
+      return res.status(400).json({
+        code: 400,
+        message: '应用内页面必须选择跳转页面'
+      });
+    }
+
+    if (jumpType !== '应用内页面' && !jumpUrl) {
+      return res.status(400).json({
+        code: 400,
+        message: '外部应用必须填写跳转链接'
+      });
+    }
+
     // 处理 jumpType: 应用内页面=1, 外部应用=2, Stocks=3
     let jumpTypeValue = 2; // 默认外部应用
     if (jumpType === '应用内页面' || jumpType === 'In-App Page' || jumpType === 1) {
@@ -257,7 +287,7 @@ router.put('/:id', async (req, res) => {
         priority || 1,
         jumpTypeValue,
         jump_nei || null,
-        jumpUrl,
+        jumpUrl || null, // 应用内页面时可以为 null
         effectiveValue,
         devicesValue,
         id,
