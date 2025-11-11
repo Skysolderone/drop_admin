@@ -213,31 +213,34 @@ const PopupList: React.FC = () => {
                 // 转换数据格式以适配模态框
                 const popupData = result.data;
                 
-                // 转换 jumpType: 数字转文字
+                // 转换 jumpType: 数字/字符串转文字
                 let jumpTypeText = '外部应用';
-                if (popupData.jumpType === 1) {
+                const jumpTypeValue = Number(popupData.jumpType);
+                if (jumpTypeValue === 1) {
                     jumpTypeText = '应用内页面';
-                } else if (popupData.jumpType === 2) {
+                } else if (jumpTypeValue === 2) {
                     jumpTypeText = '外部应用';
-                } else if (popupData.jumpType === 3) {
+                } else if (jumpTypeValue === 3) {
                     jumpTypeText = 'Stocks';
                 }
                 
-                // 转换 isActive: 数字转文字
+                // 转换 isActive: 数字/字符串转文字
                 let isActiveText = 'active';
-                if (popupData.isActive === 1) {
+                const isActiveValue = Number(popupData.isActive);
+                if (isActiveValue === 1) {
                     isActiveText = 'active';
-                } else if (popupData.isActive === 2) {
+                } else if (isActiveValue === 2) {
                     isActiveText = 'inactive';
                 }
                 
-                // 转换 allowDevices: 数字转数组
+                // 转换 allowDevices: 数字/字符串转数组
                 let allowDevicesArray = ['android', 'ios'];
-                if (popupData.allowDevices === 1) {
+                const allowDevicesValue = Number(popupData.allowDevices);
+                if (allowDevicesValue === 1) {
                     allowDevicesArray = ['android'];
-                } else if (popupData.allowDevices === 2) {
+                } else if (allowDevicesValue === 2) {
                     allowDevicesArray = ['ios'];
-                } else if (popupData.allowDevices === 3) {
+                } else if (allowDevicesValue === 3) {
                     allowDevicesArray = ['android', 'ios'];
                 }
                 
@@ -357,6 +360,8 @@ const PopupList: React.FC = () => {
             dataIndex: 'priority',
             key: 'sort',
             width: 80,
+            sorter: (a: any, b: any) => a.priority - b.priority,
+            defaultSortOrder: 'ascend' as const, // 默认升序排列
         },
         {
             title: 'Jump Type',

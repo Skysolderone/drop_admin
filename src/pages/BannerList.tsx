@@ -315,6 +315,8 @@ const BannerList: React.FC = () => {
             dataIndex: 'priority',
             key: 'sort',
             width: 80,
+            sorter: (a: any, b: any) => a.priority - b.priority,
+            defaultSortOrder: 'ascend' as const, // 默认升序排列
         },
         {
             title: 'Jump Type',
