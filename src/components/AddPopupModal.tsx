@@ -93,6 +93,20 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
 
                 console.log('解析后的jumpTypeValue:', jumpTypeValue, 'jump_nei:', jumpNei);
 
+                // 处理 isActive: 从数字/字符串转换为字符串
+                let isActiveValue = 'active'; // 默认有效
+                const effective = initialValues.isActive || initialValues.effective;
+                // 转换为数字进行比较
+                const effectiveNum = Number(effective);
+                
+                if (effectiveNum === 1 || effective === true || effective === 'active') {
+                    isActiveValue = 'active';
+                } else if (effectiveNum === 2 || effective === false || effective === 'inactive') {
+                    isActiveValue = 'inactive';
+                }
+
+                console.log('解析后的isActiveValue:', isActiveValue, 'effective:', effective, 'effectiveNum:', effectiveNum);
+
                 // 编辑模式，填充现有数据
                 const formData = {
                     popupName: initialValues.popupName,
@@ -100,7 +114,7 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
                     jumpType: jumpTypeValue,
                     jumpPage: initialValues.jumpPage || initialValues.jump_page || initialValues.jump_nei, // 从jump_nei读取
                     jumpUrl: initialValues.jumpUrl,
-                    isActive: initialValues.isActive,
+                    isActive: isActiveValue,
                     allowDevices: allowDevicesValue,
                     image: initialValues.image,
                 };
