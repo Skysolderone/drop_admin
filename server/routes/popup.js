@@ -158,6 +158,21 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // 检查排序号是否已被使用（新增时）
+    if (priority) {
+      const [existingPopups] = await pool.query(
+        'SELECT id FROM t_home_popup WHERE sort = ?',
+        [priority]
+      );
+      
+      if (existingPopups.length > 0) {
+        return res.status(400).json({
+          code: 400,
+          message: `排序号 ${priority} 已被使用，请选择其他数字`
+        });
+      }
+    }
+
     // 处理 jumpType: 应用内页面=1, 外部应用=2, Stocks=3
     let jumpTypeValue = 2; // 默认外部应用
     if (jumpType === '应用内页面' || jumpType === 'In-App Page' || jumpType === 1) {
@@ -251,6 +266,21 @@ router.put('/:id', async (req, res) => {
         code: 400,
         message: '外部应用必须填写跳转链接'
       });
+    }
+
+    // 检查排序号是否已被其他记录使用（编辑时，排除当前记录）
+    if (priority) {
+      const [existingPopups] = await pool.query(
+        'SELECT id FROM t_home_popup WHERE sort = ? AND id != ?',
+        [priority, id]
+      );
+      
+      if (existingPopups.length > 0) {
+        return res.status(400).json({
+          code: 400,
+          message: `排序号 ${priority} 已被其他记录使用，请选择其他数字`
+        });
+      }
     }
 
     // 处理 jumpType: 应用内页面=1, 外部应用=2, Stocks=3

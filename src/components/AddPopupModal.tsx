@@ -25,10 +25,36 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [fileList, setFileList] = useState<UploadFile[]>([]);
+    const [existingPriorities, setExistingPriorities] = useState<number[]>([]); // 存储已存在的排序号
+
+    // 获取所有已存在的排序号
+    const fetchExistingPriorities = async () => {
+        try {
+            const { data: result } = await api.get('/api/popup', { 
+                params: { 
+                    page: 1, 
+                    limit: 1000, // 获取所有数据
+                    _t: Date.now() 
+                } 
+            });
+            
+            if (result.code === 200) {
+                const priorities = result.data.popups
+                    .map((popup: any) => Number(popup.priority))
+                    .filter((priority: number) => !isNaN(priority));
+                setExistingPriorities(priorities);
+            }
+        } catch (error) {
+            console.error('获取排序号列表失败:', error);
+        }
+    };
 
     // 当模态框打开时，设置表单初始值
     useEffect(() => {
         if (visible) {
+            // 获取已存在的排序号列表
+            fetchExistingPriorities();
+            
             if (mode === 'edit' && initialValues) {
                 console.log('编辑模式 - 接收到的数据:', initialValues);
 
@@ -362,7 +388,32 @@ const AddPopupModal: React.FC<AddPopupModalProps> = ({
                 <Form.Item
                     label="排序(1-999数字越小显示越前)"
                     name="priority"
-                    rules={[{ required: true, message: '请输入排序数字！' }]}
+                    rules={[
+                        { required: true, message: '请输入排序数字！' },
+                        {
+                            validator: async (_, value) => {
+                                if (!value) return Promise.resolve();
+                                
+                                const priorityNum = Number(value);
+                                
+                                // 检查是否重复（编辑模式时，排除当前记录的排序号）
+                                const currentPriority = mode === 'edit' && initialValues ? Number(initialValues.priority) : null;
+                                const isDuplicate = existingPriorities.some(p => {
+                                    // 如果是编辑模式且是当前记录的排序号，允许使用
+                                    if (currentPriority !== null && p === currentPriority) {
+                                        return false;
+                                    }
+                                    return p === priorityNum;
+                                });
+                                
+                                if (isDuplicate) {
+                                    return Promise.reject(new Error(`排序号 ${priorityNum} 已被使用，请选择其他数字`));
+                                }
+                                
+                                return Promise.resolve();
+                            }
+                        }
+                    ]}
                 >
                     <InputNumber
                         min={1}

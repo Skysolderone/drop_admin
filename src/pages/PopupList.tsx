@@ -299,8 +299,8 @@ const PopupList: React.FC = () => {
     const columns = [
         {
             title: 'Order',
-            dataIndex: 'priority',
-            key: 'priority',
+            dataIndex: 'id',
+            key: 'id',
             width: 80,
         },
         {
