@@ -256,12 +256,12 @@ const TokenList: React.FC = () => {
         setReloadLoading(true);
         try {
             const { data: result } = await api.get('/v1/app/reload');
-            console.log('APP刷新结果:', result);
+            console.log('广播消息结果:', result);
             
             if (result.code === 200) {
-                message.success('APP刷新成功！');
+                message.success('广播消息发送成功！');
             } else {
-                message.error(result.msg || result.message || 'APP刷新失败');
+                message.error(result.msg || result.message || '广播消息发送失败');
             }
         } catch (error: any) {
             console.error('APP刷新错误:', error);

@@ -7,6 +7,8 @@ import helmet from 'helmet';
 import multer from 'multer';
 import path from 'path';
 import { initDatabase, testConnection } from './config/database.js';
+import { testRedisConnection } from './config/redis.js';
+import { initializeRedisTopics } from './services/redisTopicService.js';
 
 // 导入路由
 import authRoutes from './routes/auth.js'; //OK
@@ -15,6 +17,7 @@ import tokenRoutes from './routes/tokens.js';
 import bannerRoutes from './routes/banners.js';
 import popupRoutes from './routes/popup.js';
 import configRoutes from './routes/config.js';
+import reloadRoutes from './routes/reload.js';
 
 // 加载环境变量
 dotenv.config();
@@ -63,7 +66,7 @@ const storage = multer.diskStorage({
     // 使用时间戳+随机数+原始后缀
     const ext = path.extname(file.originalname || '');
     const safeBase = (file.fieldname || 'file').replace(/[^a-zA-Z0-9_-]/g, '');
-    cb(null, `${safeBase}_${Date.now()}_${Math.random().toString(36).slice(2,8)}${ext}`);
+    cb(null, `${safeBase}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
   }
 });
 const upload = multer({
@@ -85,7 +88,7 @@ const storageUrlPic = multer.diskStorage({
   filename: function (req, file, cb) {
     const ext = path.extname(file.originalname || '');
     const safeBase = (file.fieldname || 'file').replace(/[^a-zA-Z0-9_-]/g, '');
-    cb(null, `${safeBase}_${Date.now()}_${Math.random().toString(36).slice(2,8)}${ext}`);
+    cb(null, `${safeBase}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
   }
 });
 const uploadUrlPic = multer({
@@ -150,9 +153,9 @@ app.post('/api/s3/upload', multer({ storage: multer.memoryStorage() }).single('f
     const forcePathStyle = true
 
     if (!endpoint || !accessKeyId || !secretAccessKey || !bucket) {
-      return res.status(500).json({ 
-        code: 500, 
-        message: 'S3 配置缺失，请设置环境变量' 
+      return res.status(500).json({
+        code: 500,
+        message: 'S3 配置缺失，请设置环境变量'
       });
     }
 
@@ -177,24 +180,24 @@ app.post('/api/s3/upload', multer({ storage: multer.memoryStorage() }).single('f
 
     // 返回 URL
     const url = result.Location || `${endpoint.replace(/\/$/, '')}/${forcePathStyle ? `${bucket}/` : ''}${key}`;
-    
-    res.json({ 
-      code: 200, 
-      message: '上传成功', 
-      data: { 
-        url, 
-        bucket, 
+
+    res.json({
+      code: 200,
+      message: '上传成功',
+      data: {
+        url,
+        bucket,
         key,
         filename: fileName,
         mimetype: file.mimetype,
         size: file.size
-      } 
+      }
     });
   } catch (err) {
     console.error('S3 上传失败:', err);
-    res.status(500).json({ 
-      code: 500, 
-      message: err.message || '上传失败' 
+    res.status(500).json({
+      code: 500,
+      message: err.message || '上传失败'
     });
   }
 });
@@ -216,6 +219,10 @@ app.use('/api/market', marketRoutes);
 app.use('/api/banners', bannerRoutes);
 app.use('/api/popup', popupRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/reload', reloadRoutes);
+
+// v1 API 路由（兼容旧版本）
+app.use('/v1/app', reloadRoutes);
 
 // 根路径
 app.get('/', (req, res) => {
@@ -243,7 +250,7 @@ const startServer = async () => {
     // 测试数据库连接
     console.log('🔄 正在连接数据库...');
     const dbConnected = await testConnection();
-    
+
     if (!dbConnected) {
       console.error('❌ 数据库连接失败，服务器启动中止');
       process.exit(1);
@@ -253,14 +260,34 @@ const startServer = async () => {
     console.log('🔄 正在初始化数据库表...');
     await initDatabase();
 
+    // 测试 Redis 连接
+    console.log('🔄 正在连接 Redis...');
+    const redisConnected = await testRedisConnection();
+
+    if (!redisConnected) {
+      console.warn('⚠️  Redis 连接失败，但服务器继续启动（Redis 为可选服务）');
+    } else {
+      // 初始化 Redis 主题
+      try {
+        await initializeRedisTopics();
+      } catch (error) {
+        console.error('⚠️  Redis 主题初始化失败:', error.message);
+        console.warn('⚠️  服务器继续启动，但 Redis 功能可能不可用');
+      }
+    }
+
     // 启动服务器
-    app.listen(PORT, () => {
+    // 监听 0.0.0.0 允许 WSL 和其他网络接口访问
+    const HOST = process.env.HOST || '0.0.0.0';
+    app.listen(PORT, HOST, () => {
       console.log('🚀 ===================================');
       console.log(`🚀 Drop Admin API 服务器启动成功!`);
+      console.log(`🚀 监听地址: ${HOST}:${PORT}`);
       console.log(`🚀 端口: ${PORT}`);
       console.log(`🚀 环境: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🚀 健康检查: http://localhost:${PORT}/health`);
       console.log(`🚀 API 文档: http://localhost:${PORT}/`);
+      console.log(`🚀 WSL 访问: 使用 Windows 主机 IP 地址访问，例如: http://<Windows-IP>:${PORT}`);
       console.log('🚀 ===================================');
     });
 
