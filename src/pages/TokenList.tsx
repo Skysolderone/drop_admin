@@ -254,14 +254,23 @@ const TokenList: React.FC = () => {
         }
         
         setReloadLoading(true);
+        let broadcastTimestamp: number | null = null;
+        let expectedNodes: string[] = [];
+        
         try {
             const { data: result } = await api.get('/v1/app/reload');
             console.log('广播消息结果:', result);
             
             if (result.code === 200) {
                 message.success('广播消息发送成功！');
+                // 保存广播时间戳和预期节点列表
+                broadcastTimestamp = result.data?.timestamp || null;
+                expectedNodes = result.data?.expectedNodes || [];
+                console.log(`广播时间戳: ${broadcastTimestamp}, 预期节点: ${expectedNodes.join(', ')}`);
             } else {
                 message.error(result.msg || result.message || '广播消息发送失败');
+                setReloadLoading(false);
+                return;
             }
         } catch (error: any) {
             console.error('APP刷新错误:', error);
@@ -272,14 +281,21 @@ const TokenList: React.FC = () => {
             } else {
                 message.error(error?.response?.data?.msg || error?.response?.data?.message || error?.message || 'APP刷新失败');
             }
-        } finally {
-            // 不立即重置loading状态，而是开始轮询状态
-            pollReloadStatus();
+            setReloadLoading(false);
+            return;
+        }
+        
+        // 开始轮询状态，传入广播时间戳和预期节点
+        if (broadcastTimestamp && expectedNodes.length > 0) {
+            pollReloadStatus(broadcastTimestamp, expectedNodes);
+        } else {
+            setReloadLoading(false);
+            message.warning('无法获取广播信息，请稍后手动确认刷新状态');
         }
     };
 
-    // 轮询刷新状态
-    const pollReloadStatus = async () => {
+    // 轮询刷新状态 - 检查所有节点的timestamp是否与广播时间戳一致
+    const pollReloadStatus = async (broadcastTimestamp: number, expectedNodes: string[]) => {
         let attempts = 0;
         const maxAttempts = 30; // 最多轮询30次，避免无限轮询
         const pollInterval = 2000; // 每2秒轮询一次
@@ -287,19 +303,62 @@ const TokenList: React.FC = () => {
         const checkStatus = async () => {
             attempts++;
             try {
-                const { data: result } = await api.get('/v1/app/reload/status');
-                console.log(`轮询状态 (${attempts}/${maxAttempts}):`, result);
-             
-                if (result.status === 'success' || result.code === 200) {
-                    // 刷新成功
-                    setReloadLoading(false);
-                    message.success('APP刷新完成！');
+                // 获取所有节点列表
+                const { data: nodesResult } = await api.get('/api/reload/node/list');
+                console.log(`轮询状态 (${attempts}/${maxAttempts}):`, nodesResult);
+                
+                if (!nodesResult.success || !nodesResult.data) {
+                    console.warn('获取节点列表失败:', nodesResult);
+                    if (attempts < maxAttempts) {
+                        setTimeout(checkStatus, pollInterval);
+                    } else {
+                        setReloadLoading(false);
+                        message.warning('刷新状态检查超时，请手动确认');
+                    }
                     return;
-                } else if (result.status === 'failed' || result.code === 500) {
-                    // 刷新失败
-                    setReloadLoading(false);
-                    message.error('APP刷新失败！');
+                }
+                
+                const allNodes = nodesResult.data || [];
+                // 筛选出预期节点
+                const targetNodes = allNodes.filter((node: any) => expectedNodes.includes(node.ip));
+                
+                // 如果没有找到任何预期节点，可能是节点还未注册
+                if (targetNodes.length === 0) {
+                    console.log(`未找到预期节点，预期节点列表: ${expectedNodes.join(', ')}`);
+                    if (attempts < maxAttempts) {
+                        setTimeout(checkStatus, pollInterval);
+                    } else {
+                        setReloadLoading(false);
+                        message.warning('未找到预期节点，请确认节点是否已注册');
+                    }
                     return;
+                }
+                
+                // 检查所有预期节点的timestamp是否与广播时间戳一致
+                const nodesMatched = targetNodes.filter((node: any) => {
+                    const nodeTimestamp = parseInt(node.timestamp) || 0;
+                    return nodeTimestamp === broadcastTimestamp;
+                });
+                
+                const matchedCount = nodesMatched.length;
+                const totalCount = targetNodes.length;
+                
+                console.log(`节点检查: ${matchedCount}/${totalCount} 节点已更新到时间戳 ${broadcastTimestamp}`);
+                
+                // 如果所有预期节点的timestamp都与广播时间戳一致，说明刷新完成
+                if (matchedCount === totalCount && totalCount > 0) {
+                    setReloadLoading(false);
+                    message.success(`APP刷新完成！所有节点(${totalCount}个)已更新`);
+                    return;
+                }
+                
+                // 如果有部分节点未更新，显示详细信息
+                if (matchedCount < totalCount) {
+                    const notMatchedNodes = targetNodes.filter((node: any) => {
+                        const nodeTimestamp = parseInt(node.timestamp) || 0;
+                        return nodeTimestamp !== broadcastTimestamp;
+                    });
+                    console.log(`等待节点更新: ${notMatchedNodes.map((n: any) => `${n.ip}(${n.timestamp})`).join(', ')}`);
                 }
                 
                 // 继续轮询
@@ -308,7 +367,15 @@ const TokenList: React.FC = () => {
                 } else {
                     // 超时
                     setReloadLoading(false);
-                    message.warning('刷新状态检查超时，请手动确认');
+                    const notMatchedNodes = targetNodes.filter((node: any) => {
+                        const nodeTimestamp = parseInt(node.timestamp) || 0;
+                        return nodeTimestamp !== broadcastTimestamp;
+                    });
+                    if (notMatchedNodes.length > 0) {
+                        message.warning(`刷新超时，以下节点未更新: ${notMatchedNodes.map((n: any) => n.ip).join(', ')}`);
+                    } else {
+                        message.warning('刷新状态检查超时，请手动确认');
+                    }
                 }
             } catch (error: any) {
                 console.error(`轮询状态错误 (${attempts}/${maxAttempts}):`, error);
