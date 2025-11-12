@@ -15,6 +15,8 @@ import redisClient from '../config/redis.js';
 const NODE_STATUS_KEY_PREFIX = 'node:status:';
 // Redis key for latest broadcast timestamp
 const LATEST_BROADCAST_TIMESTAMP_KEY = 'reload:latest_broadcast_timestamp';
+// Redis key prefix for tracking nodes that should report for a broadcast
+const BROADCAST_EXPECTED_NODES_KEY_PREFIX = 'reload:broadcast:expected:';
 
 // Store config center version information
 let configCenterVersion = {
@@ -387,9 +389,45 @@ export const reportNodeUpdate = async (req, res) => {
     } else {
       const oldTimestamp = existingNodeStatus.timestamp;
       if (success) {
-        console.log(`Node refresh result (success): ip=${ip}, timestamp updated from ${oldTimestamp} to ${reportTimestamp}, action=${actionType}`);
+        console.log(`✅ Node refresh result (success): ip=${ip}, timestamp updated from ${oldTimestamp} to ${reportTimestamp}, action=${actionType}`);
       } else {
-        console.log(`Node refresh result (failed): ip=${ip}, timestamp=${reportTimestamp}, action=${actionType}, error=${error_message || 'unknown'}`);
+        console.log(`❌ Node refresh result (failed): ip=${ip}, timestamp=${reportTimestamp}, action=${actionType}, error=${error_message || 'unknown'}`);
+      }
+
+      // 记录节点已上报，从预期节点列表中移除（如果存在）
+      try {
+        if (isRedisReady()) {
+          const expectedNodesKey = `${BROADCAST_EXPECTED_NODES_KEY_PREFIX}${reportTimestamp}`;
+          const expectedDataStr = await redisClient.get(expectedNodesKey);
+          if (expectedDataStr) {
+            const expectedData = JSON.parse(expectedDataStr);
+            const remainingNodes = expectedData.expectedNodes.filter(nodeIp => nodeIp !== ip);
+
+            if (remainingNodes.length < expectedData.expectedNodes.length) {
+              // 更新剩余节点列表
+              expectedData.expectedNodes = remainingNodes;
+              expectedData.reportedNodes = expectedData.reportedNodes || [];
+              expectedData.reportedNodes.push({
+                ip,
+                success,
+                reportTime: new Date().toISOString()
+              });
+
+              await redisClient.setex(expectedNodesKey, 300, JSON.stringify(expectedData));
+              console.log(`📝 Node ${ip} reported for broadcast ${reportTimestamp}, ${remainingNodes.length} nodes remaining`);
+
+              // 如果所有节点都已上报，记录日志
+              if (remainingNodes.length === 0) {
+                console.log(`✅ All nodes reported for broadcast ${reportTimestamp}`);
+              } else {
+                // 记录还有哪些节点未上报
+                console.log(`⏳ Waiting for nodes to report: ${remainingNodes.join(', ')}`);
+              }
+            }
+          }
+        }
+      } catch (trackError) {
+        console.warn(`Warning: Failed to track node report: ${trackError.message}`);
       }
     }
 
@@ -421,6 +459,71 @@ export const getAllNodes = async (req, res) => {
   } catch (error) {
     console.error('Get node list error:', error);
     return application.create_error_response(res, 500, 'Failed to get node list');
+  }
+};
+
+/**
+ * Helper API: Get broadcast report status
+ * GET /api/reload/broadcast/status?timestamp=xxx
+ * Query: timestamp - 广播时间戳（可选，默认使用最新的广播时间戳）
+ */
+export const getBroadcastStatus = async (req, res) => {
+  try {
+    let timestamp = req.query.timestamp;
+
+    // 如果没有提供时间戳，使用最新的广播时间戳
+    if (!timestamp) {
+      try {
+        if (isRedisReady()) {
+          const storedTimestamp = await redisClient.get(LATEST_BROADCAST_TIMESTAMP_KEY);
+          if (storedTimestamp) {
+            timestamp = storedTimestamp;
+          }
+        }
+      } catch (error) {
+        console.warn(`Warning: Failed to get latest broadcast timestamp: ${error.message}`);
+      }
+    }
+
+    if (!timestamp) {
+      return application.create_error_response(res, 400, 'No broadcast timestamp found. Please provide timestamp parameter or trigger a broadcast first.');
+    }
+
+    const expectedNodesKey = `${BROADCAST_EXPECTED_NODES_KEY_PREFIX}${timestamp}`;
+    const expectedDataStr = await redisClient.get(expectedNodesKey);
+
+    if (!expectedDataStr) {
+      return application.create_response(res, {
+        success: true,
+        message: 'Broadcast status not found (may have expired)',
+        data: {
+          timestamp: parseInt(timestamp),
+          found: false
+        }
+      });
+    }
+
+    const expectedData = JSON.parse(expectedDataStr);
+    const reportedIps = (expectedData.reportedNodes || []).map(n => n.ip);
+    const missingNodes = expectedData.expectedNodes.filter(ip => !reportedIps.includes(ip));
+
+    return application.create_response(res, {
+      success: true,
+      data: {
+        timestamp: parseInt(timestamp),
+        broadcastTime: expectedData.broadcastTime,
+        expectedNodes: expectedData.expectedNodes,
+        expectedCount: expectedData.expectedNodes.length,
+        reportedNodes: expectedData.reportedNodes || [],
+        reportedCount: (expectedData.reportedNodes || []).length,
+        missingNodes: missingNodes,
+        missingCount: missingNodes.length,
+        allReported: missingNodes.length === 0
+      }
+    });
+  } catch (error) {
+    console.error('Get broadcast status error:', error);
+    return application.create_error_response(res, 500, `Failed to get broadcast status: ${error.message}`);
   }
 };
 
@@ -467,6 +570,29 @@ export const broadcastReloadMessage = async (req, res) => {
     const message = `${timestamp}reload`;
     const topicKey = 'node:status:updates';
 
+    // 在广播前，记录所有应该收到消息的active节点
+    let expectedNodes = [];
+    try {
+      if (isRedisReady()) {
+        const allNodes = await getAllNodeStatuses();
+        // 筛选出状态为 active 的节点
+        expectedNodes = allNodes
+          .filter(node => node.status === 'active' || !node.status || node.status === 'reload_success')
+          .map(node => node.ip);
+
+        // 记录这次广播应该收到消息的节点列表
+        const expectedNodesKey = `${BROADCAST_EXPECTED_NODES_KEY_PREFIX}${timestamp}`;
+        await redisClient.setex(expectedNodesKey, 300, JSON.stringify({
+          timestamp,
+          expectedNodes,
+          broadcastTime: new Date().toISOString()
+        }));
+        console.log(`📋 Recorded expected nodes for broadcast ${timestamp}: ${expectedNodes.length} nodes - ${expectedNodes.join(', ')}`);
+      }
+    } catch (recordError) {
+      console.warn(`Warning: Failed to record expected nodes: ${recordError.message}`);
+    }
+
     const success = await publishToTopic(topicKey, message);
 
     if (success) {
@@ -480,7 +606,7 @@ export const broadcastReloadMessage = async (req, res) => {
         console.warn(`Warning: Failed to save broadcast timestamp to Redis: ${redisError.message}`);
       }
 
-      console.log(`Broadcast reload message: ${message}`);
+      console.log(`📤 Broadcast reload message: ${message} to ${expectedNodes.length} expected nodes`);
       return application.create_response(res, {
         code: 200,
         success: true,
@@ -488,7 +614,9 @@ export const broadcastReloadMessage = async (req, res) => {
         data: {
           timestamp,
           message,
-          topicKey
+          topicKey,
+          expectedNodesCount: expectedNodes.length,
+          expectedNodes
         }
       });
     } else {

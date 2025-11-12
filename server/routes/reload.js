@@ -6,7 +6,8 @@ import {
   reportNodeUpdate,
   getAllNodes,
   updateConfigVersion,
-  broadcastReloadMessage
+  broadcastReloadMessage,
+  getBroadcastStatus
 } from '../controllers/reload.js';
 
 const router = express.Router();
@@ -22,5 +23,6 @@ router.post('/config/update-version', updateConfigVersion);
 
 // Broadcast reload message
 router.get('/reload', broadcastReloadMessage);
+router.get('/broadcast/status', getBroadcastStatus);
 
 export default router;
