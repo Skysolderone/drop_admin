@@ -14,10 +14,10 @@ dotenv.config();
 
 // Redis configuration
 const redisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
+  host: process.env.REDIS_HOST || '192.168.3.20',
   port: parseInt(process.env.REDIS_PORT) || 6379,
-  password: process.env.REDIS_PASSWORD || undefined,
-  db: parseInt(process.env.REDIS_DB) || 0,
+  password: process.env.REDIS_PASSWORD || 'drop@redis123',
+  db: parseInt(process.env.REDIS_DB) || 8,
   retryStrategy(times) {
     const delay = Math.min(times * 50, 2000);
     return delay;
@@ -28,6 +28,7 @@ const redisConfig = {
   connectTimeout: 10000, // 10秒连接超时
   lazyConnect: false // 立即连接
 };
+
 
 // Create Redis client
 const redisClient = new Redis(redisConfig);
