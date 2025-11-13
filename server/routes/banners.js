@@ -79,6 +79,10 @@ router.get('/', async (req, res) => {
         image: banner.banner_img,
         banner_image: banner.banner_img,
         devices: banner.devices,
+        main_title_color: banner.main_title_color,
+        title_color: banner.title_color,
+        btn_color: banner.btn_color,
+        btn_img: banner.btn_img,
         i18n,
         updated_at: banner.updated_at || banner.created_at
       };
@@ -165,6 +169,10 @@ router.get('/:id', async (req, res) => {
         image: banner.banner_img,
         banner_img: banner.banner_img,
         devices: banner.devices,
+        main_title_color: banner.main_title_color,
+        title_color: banner.title_color,
+        btn_color: banner.btn_color,
+        btn_img: banner.btn_img,
         i18n,
         updated_at: banner.updated_at || banner.create_at
       }
@@ -192,7 +200,11 @@ router.post('/', async (req, res) => {
       isActive,
       image,
       allowDevices,
-      i18n
+      i18n,
+      mainTitleColor,
+      titleColor,
+      btnColor,
+      btnImg
     } = req.body;
 
     // 验证必填字段
@@ -253,8 +265,8 @@ router.post('/', async (req, res) => {
     // 插入数据
     const [result] = await pool.query(
       `INSERT INTO t_home_banner
-        (main_title, title, button_txt, priority, jump_type, jump_nei, jump_link, invalid, banner_img, devices, create_at, update_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        (main_title, title, button_txt, priority, jump_type, jump_nei, jump_link, invalid, banner_img, devices, main_title_color, title_color, btn_color, btn_img, create_at, update_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         mainTitle,
         subTitle || '',
@@ -265,7 +277,11 @@ router.post('/', async (req, res) => {
         jumpUrl || null, // 应用内页面时可以为 null
         invalidValue,
         image,
-        devicesValue
+        devicesValue,
+        mainTitleColor || null,
+        titleColor || null,
+        btnColor || null,
+        btnImg || null
       ]
     );
 
@@ -324,7 +340,11 @@ router.put('/:id', async (req, res) => {
       isActive,
       image,
       allowDevices,
-      i18n
+      i18n,
+      mainTitleColor,
+      titleColor,
+      btnColor,
+      btnImg
     } = req.body;
 
     // 映射 jumpType 到数据库值
@@ -362,7 +382,7 @@ router.put('/:id', async (req, res) => {
       `UPDATE t_home_banner
       SET main_title = ?, title = ?, button_txt = ?, priority = ?,
           jump_type = ?, jump_nei = ?, jump_link = ?, invalid = ?, banner_img = ?,
-          devices = ?, update_at = NOW()
+          devices = ?, main_title_color = ?, title_color = ?, btn_color = ?, btn_img = ?, update_at = NOW()
       WHERE id = ?`,
       [
         mainTitle,
@@ -375,6 +395,10 @@ router.put('/:id', async (req, res) => {
         invalidValue,
         image,
         devicesValue,
+        mainTitleColor || null,
+        titleColor || null,
+        btnColor || null,
+        btnImg || null,
         id
       ]
     );
