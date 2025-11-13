@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, Upload, Button, message, Image, Radio, Checkbox } from 'antd';
+import { Modal, Form, Input, Select, Upload, Button, message, Image, Radio, Checkbox, ColorPicker } from 'antd';
+import type { Color } from 'antd/es/color-picker';
 import { UploadOutlined, CloseCircleFilled } from '@ant-design/icons';
 import type { UploadFile, UploadProps } from 'antd';
 import InternationalizationModal from './InternationalizationModal';
@@ -26,6 +27,7 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [fileList, setFileList] = useState<UploadFile[]>([]);
+    const [btnImgFileList, setBtnImgFileList] = useState<UploadFile[]>([]); // 按钮图片文件列表
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [jumpType, setJumpType] = useState<string>('外部应用'); // 跟踪跳转类型状态
     
@@ -108,6 +110,10 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
                 isActive: isActiveValue,
                 allowDevices: allowDevicesValue,
                 image: initialValues.image || initialValues.banner_img,
+                mainTitleColor: initialValues.mainTitleColor || initialValues.main_title_color,
+                titleColor: initialValues.titleColor || initialValues.title_color,
+                btnColor: initialValues.btnColor || initialValues.btn_color,
+                btnImg: initialValues.btnImg || initialValues.btn_img,
             };
 
             console.log('准备设置的表单数据:', formData);
@@ -136,6 +142,17 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
                 }]);
             }
 
+            // 如果有按钮图片，设置到按钮图片文件列表中
+            const btnImgUrl = initialValues.btnImg || initialValues.btn_img;
+            if (btnImgUrl) {
+                setBtnImgFileList([{
+                    uid: '-1',
+                    name: 'btn-img.jpg',
+                    status: 'done',
+                    url: btnImgUrl,
+                }]);
+            }
+
             // 如果有国际化数据，设置到状态中
             if (initialValues.i18n) {
                 setI18nData(initialValues.i18n);
@@ -143,6 +160,7 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
         } else {
             // 添加模式，设置默认值
             setJumpType('外部应用');
+            setBtnImgFileList([]); // 清空按钮图片列表
             requestAnimationFrame(() => {
                 form.setFieldsValue({
                     priority: 1,
@@ -274,6 +292,70 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
         },
     };
 
+    // 按钮图片上传配置
+    const btnImgUploadProps: UploadProps = {
+        fileList: btnImgFileList,
+        showUploadList: false,
+        beforeUpload: (file) => {
+            const isImage = file.type.startsWith('image/');
+            if (!isImage) {
+                message.error('只能上传图片文件！');
+            }
+            const isLt5M = file.size / 1024 / 1024 < 5;
+            if (!isLt5M) {
+                message.error('图片大小不能超过5MB！');
+                return false;
+            }
+            return isImage;
+        },
+        customRequest: async (options: any) => {
+            const { file, onSuccess, onError, onProgress } = options;
+            try {
+                const formData = new FormData();
+                formData.append('file', file as File);
+                formData.append('prefix', 'banners/buttons');
+                const res = await api.post('/api/s3/upload', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                    onUploadProgress: (evt:any) => {
+                        if (onProgress && evt.total) {
+                            onProgress({ percent: Math.round((evt.loaded / evt.total) * 100) });
+                        }
+                    }
+                });
+                if (res.data.code === 200) {
+                    message.success('按钮图片上传成功！');
+                    const uploadedUrl = res.data.data.url;
+                    // 更新文件列表
+                    setBtnImgFileList([{
+                        uid: file.uid,
+                        name: file.name,
+                        status: 'done',
+                        url: uploadedUrl,
+                        response: { data: { url: uploadedUrl } }
+                    }]);
+                    // 将上传成功的文件路径设置到表单中
+                    form.setFieldsValue({ btnImg: uploadedUrl });
+                    if (onSuccess) {
+                        onSuccess({ data: { url: uploadedUrl } }, file);
+                    }
+                } else {
+                    message.error(res.data.message || '按钮图片上传失败！');
+                    if (onError) onError(new Error(res.data.message || '上传失败'));
+                }
+            } catch (e: any) {
+                message.error(e?.message || '上传失败');
+                if (onError) onError(e);
+            }
+        },
+        onRemove: () => {
+            setBtnImgFileList([]);
+            form.setFieldsValue({ btnImg: undefined });
+        },
+        onChange: (info) => {
+            setBtnImgFileList(info.fileList);
+        },
+    };
+
     const handleSubmit = async () => {
         try {
             setLoading(true);
@@ -287,6 +369,27 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
                 } else if (imageFile.url) {
                     values.image = imageFile.url;
                 }
+            }
+
+            // 获取按钮图片路径
+            const btnImgFile = btnImgFileList.find(file => file.status === 'done');
+            if (btnImgFile) {
+                if (btnImgFile.response) {
+                    values.btnImg = btnImgFile.response.data.url || btnImgFile.response.data.path;
+                } else if (btnImgFile.url) {
+                    values.btnImg = btnImgFile.url;
+                }
+            }
+
+            // 处理颜色选择器的值（转换为十六进制字符串）
+            if (values.mainTitleColor && typeof values.mainTitleColor === 'object') {
+                values.mainTitleColor = values.mainTitleColor.toHexString();
+            }
+            if (values.titleColor && typeof values.titleColor === 'object') {
+                values.titleColor = values.titleColor.toHexString();
+            }
+            if (values.btnColor && typeof values.btnColor === 'object') {
+                values.btnColor = values.btnColor.toHexString();
             }
 
             // 添加国际化数据
@@ -310,6 +413,7 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
     const handleCancel = () => {
         form.resetFields();
         setFileList([]);
+        setBtnImgFileList([]);
         onCancel();
     };
 
@@ -552,6 +656,98 @@ const AddBannerModal: React.FC<AddBannerModalProps> = ({
                 >
                     <Input type="number" placeholder="请输入排序数字，数字越小排序越靠前" />
                 </Form.Item>
+
+                {/* 颜色选择器 */}
+                <Form.Item
+                    label="主标题颜色"
+                    name="mainTitleColor"
+                >
+                    <ColorPicker showText format="hex" />
+                </Form.Item>
+
+                <Form.Item
+                    label="副标题颜色"
+                    name="titleColor"
+                >
+                    <ColorPicker showText format="hex" />
+                </Form.Item>
+
+                <Form.Item
+                    label="按钮颜色"
+                    name="btnColor"
+                >
+                    <ColorPicker showText format="hex" />
+                </Form.Item>
+
+                {/* 按钮图片上传 */}
+                <Form.Item label="按钮图片（可选）">
+                    <Upload {...btnImgUploadProps}>
+                        <Button icon={<UploadOutlined />}>
+                            点击上传按钮图片
+                        </Button>
+                    </Upload>
+                </Form.Item>
+
+                {/* Hidden field to store button image URL */}
+                <Form.Item
+                    name="btnImg"
+                    hidden
+                >
+                    <Input />
+                </Form.Item>
+
+                {/* 按钮图片预览区域 */}
+                {btnImgFileList.length > 0 && btnImgFileList[0] && (() => {
+                    const previewUrl = getImagePreviewUrl(btnImgFileList[0]);
+                    if (!previewUrl) return null;
+
+                    return (
+                        <div style={{ marginBottom: 24 }}>
+                            <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>按钮图片预览:</div>
+                            <div
+                                style={{
+                                    width: 100,
+                                    height: 100,
+                                    borderRadius: '8px',
+                                    border: '1px solid #d9d9d9',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    overflow: 'hidden',
+                                    background: '#fff',
+                                    position: 'relative',
+                                }}
+                            >
+                                <Image
+                                    src={previewUrl}
+                                    alt="按钮预览"
+                                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'pointer' }}
+                                    preview={{
+                                        mask: '预览'
+                                    }}
+                                    fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+                                />
+                                <CloseCircleFilled
+                                    onClick={() => {
+                                        setBtnImgFileList([]);
+                                        form.setFieldsValue({ btnImg: undefined });
+                                    }}
+                                    style={{
+                                        position: 'absolute',
+                                        top: 1,
+                                        right: 1,
+                                        fontSize: 20,
+                                        color: '#ff4d4f',
+                                        cursor: 'pointer',
+                                        background: '#fff',
+                                        borderRadius: '50%',
+                                        zIndex: 10,
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 <Form.Item
                     label="是否失效"
