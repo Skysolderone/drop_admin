@@ -622,7 +622,7 @@ export const broadcastReloadMessage = async (req, res) => {
     const failedNodes = [];
     const requestPromises = expectedNodes.map(async (ip) => {
       try {
-        const url = `http://${ip}/v1/app/reload`;
+        const url = `http://${ip}:9091/v1/app/reload`;
         console.log(`🔄 Sending reload request to ${url}`);
 
         // 发送GET请求，设置5秒超时
