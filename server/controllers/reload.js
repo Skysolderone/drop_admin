@@ -622,7 +622,7 @@ export const broadcastReloadMessage = async (req, res) => {
     const failedNodes = [];
     const requestPromises = expectedNodes.map(async (ip) => {
       try {
-        const url = `http://${ip}:9091/v1/app/reload`;
+        const url = `http://${ip}:9393/v1/app/reload`;
         console.log(`🔄 Sending reload request to ${url}`);
 
         // 发送GET请求，设置5秒超时
@@ -651,8 +651,8 @@ export const broadcastReloadMessage = async (req, res) => {
         const errorMessage = error.code === 'ECONNREFUSED'
           ? '连接被拒绝'
           : error.code === 'ETIMEDOUT'
-          ? '请求超时'
-          : error.message;
+            ? '请求超时'
+            : error.message;
 
         failedNodes.push({
           ip,
