@@ -560,139 +560,37 @@ export const updateConfigVersion = async (req, res) => {
 };
 
 /**
- * Broadcast reload message to Redis topic
+ * Update token config version in Redis
  * GET /v1/app/reload
- * Message format: timestamp + "reload"
+ * Updates drop:token_config:version to current timestamp
  */
 export const broadcastReloadMessage = async (req, res) => {
   try {
     const timestamp = Date.now();
+    const currentTime = new Date().toISOString();
 
-    // 获取所有应该收到消息的active节点
-    let expectedNodes = [];
-    try {
-      if (isRedisReady()) {
-        const allNodes = await getAllNodeStatuses();
-        // 筛选出状态为 active 的节点，并过滤掉无效的IP
-        expectedNodes = allNodes
-          .filter(node => node.status === 'active' || !node.status || node.status === 'reload_success')
-          .map(node => node.ip)
-          .filter(ip => ip && ip.trim() !== '' && ip !== 'undefined'); // 过滤掉空IP、空字符串和'undefined'字符串
-
-        // 记录这次广播应该收到消息的节点列表
-        const expectedNodesKey = `${BROADCAST_EXPECTED_NODES_KEY_PREFIX}${timestamp}`;
-        await redisClient.setex(expectedNodesKey, 300, JSON.stringify({
-          timestamp,
-          expectedNodes,
-          broadcastTime: new Date().toISOString()
-        }));
-        console.log(`📋 Recorded expected nodes for reload ${timestamp}: ${expectedNodes.length} nodes - ${expectedNodes.join(', ')}`);
-      }
-    } catch (recordError) {
-      console.warn(`Warning: Failed to record expected nodes: ${recordError.message}`);
+    // 检查 Redis 连接状态
+    if (!isRedisReady()) {
+      console.warn('Redis not ready, cannot update token config version');
+      return application.create_error_response(res, 500, 'Redis服务不可用');
     }
 
-    // 如果没有节点，直接返回
-    if (expectedNodes.length === 0) {
-      return application.create_response(res, {
-        code: 200,
-        success: true,
-        message: '没有可用的节点',
-        data: {
-          timestamp,
-          expectedNodesCount: 0,
-          successNodes: [],
-          failedNodes: []
-        }
-      });
-    }
-
-    // 保存最新的广播时间戳到 Redis，用于验证节点上报的时间戳
-    try {
-      if (isRedisReady()) {
-        await redisClient.set(LATEST_BROADCAST_TIMESTAMP_KEY, timestamp.toString());
-        console.log(`Latest reload timestamp saved: ${timestamp}`);
-      }
-    } catch (redisError) {
-      console.warn(`Warning: Failed to save reload timestamp to Redis: ${redisError.message}`);
-    }
-
-    // 向每个节点顺序发送 HTTP GET 请求（只有前一个成功才执行下一个）
-    const successNodes = [];
-    const failedNodes = [];
-
-    // 顺序执行请求
-    for (const ip of expectedNodes) {
-      // 再次验证IP有效性（双重保险）
-      if (!ip || ip.trim() === '' || ip === 'undefined') {
-        console.log(`⚠️ Skipping invalid IP: ${ip}`);
-        continue;
-      }
-
-      try {
-        const url = `http://${ip}:9393/v1/app/reload`;
-        console.log(`🔄 Sending reload request to ${url}`);
-
-        // 发送GET请求，设置5秒超时
-        const response = await axios.get(url, {
-          timeout: 5000,
-          validateStatus: (status) => status >= 200 && status < 500 // 接受200-499的状态码
-        });
-
-        if (response.status >= 200 && response.status < 300) {
-          successNodes.push({
-            ip,
-            status: response.status,
-            message: '请求成功'
-          });
-          console.log(`✅ Reload request successful: ${ip} (status: ${response.status})`);
-        } else {
-          failedNodes.push({
-            ip,
-            status: response.status,
-            error: `HTTP ${response.status}`,
-            message: response.data?.message || '请求失败'
-          });
-          console.log(`❌ Reload request failed: ${ip} (status: ${response.status}), stopping subsequent requests`);
-          // 失败则停止后续请求
-          break;
-        }
-      } catch (error) {
-        const errorMessage = error.code === 'ECONNREFUSED'
-          ? '连接被拒绝'
-          : error.code === 'ETIMEDOUT'
-          ? '请求超时'
-          : error.message;
-
-        failedNodes.push({
-          ip,
-          error: error.code || 'UNKNOWN',
-          message: errorMessage
-        });
-        console.log(`❌ Reload request error: ${ip} - ${errorMessage}, stopping subsequent requests`);
-        // 失败则停止后续请求
-        break;
-      }
-    }
-
-    const allSuccess = failedNodes.length === 0;
-    console.log(`📤 Reload requests completed: ${successNodes.length} succeeded, ${failedNodes.length} failed`);
+    // 更新 Redis 的 drop:token_config:version 为当前时间戳
+    // 如果键不存在则自动创建，无过期时间（永久保存）
+    await redisClient.set('drop:token_config:version', timestamp.toString());
+    console.log(`✅ Token config version updated: ${timestamp} (${currentTime})`);
 
     return application.create_response(res, {
       code: 200,
-      success: allSuccess,
-      message: allSuccess ? 'Reload请求全部发送成功' : `部分节点Reload失败 (${successNodes.length}/${expectedNodes.length})`,
+      success: true,
+      message: 'Token配置版本更新成功',
       data: {
-        timestamp,
-        expectedNodesCount: expectedNodes.length,
-        successCount: successNodes.length,
-        failedCount: failedNodes.length,
-        successNodes,
-        failedNodes
+        version: timestamp,
+        updateTime: currentTime
       }
     });
   } catch (error) {
-    console.error('Broadcast reload message error:', error);
-    return application.create_error_response(res, 500, `Reload请求发送失败: ${error.message}`);
+    console.error('Update token config version error:', error);
+    return application.create_error_response(res, 500, `Token配置版本更新失败: ${error.message}`);
   }
 };
