@@ -573,10 +573,11 @@ export const broadcastReloadMessage = async (req, res) => {
     try {
       if (isRedisReady()) {
         const allNodes = await getAllNodeStatuses();
-        // 筛选出状态为 active 的节点
+        // 筛选出状态为 active 的节点，并过滤掉无效的IP
         expectedNodes = allNodes
           .filter(node => node.status === 'active' || !node.status || node.status === 'reload_success')
-          .map(node => node.ip);
+          .map(node => node.ip)
+          .filter(ip => ip && ip.trim() !== '' && ip !== 'undefined'); // 过滤掉空IP、空字符串和'undefined'字符串
 
         // 记录这次广播应该收到消息的节点列表
         const expectedNodesKey = `${BROADCAST_EXPECTED_NODES_KEY_PREFIX}${timestamp}`;
@@ -622,6 +623,12 @@ export const broadcastReloadMessage = async (req, res) => {
 
     // 顺序执行请求
     for (const ip of expectedNodes) {
+      // 再次验证IP有效性（双重保险）
+      if (!ip || ip.trim() === '' || ip === 'undefined') {
+        console.log(`⚠️ Skipping invalid IP: ${ip}`);
+        continue;
+      }
+
       try {
         const url = `http://${ip}:9393/v1/app/reload`;
         console.log(`🔄 Sending reload request to ${url}`);
