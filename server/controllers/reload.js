@@ -8,7 +8,6 @@
  */
 
 import application from '../core/appContext.js';
-import { publishToTopic } from '../services/redisTopicService.js';
 import redisClient from '../config/redis.js';
 import axios from 'axios';
 
@@ -617,10 +616,12 @@ export const broadcastReloadMessage = async (req, res) => {
       console.warn(`Warning: Failed to save reload timestamp to Redis: ${redisError.message}`);
     }
 
-    // 向每个节点发送 HTTP GET 请求
+    // 向每个节点顺序发送 HTTP GET 请求（只有前一个成功才执行下一个）
     const successNodes = [];
     const failedNodes = [];
-    const requestPromises = expectedNodes.map(async (ip) => {
+
+    // 顺序执行请求
+    for (const ip of expectedNodes) {
       try {
         const url = `http://${ip}:9393/v1/app/reload`;
         console.log(`🔄 Sending reload request to ${url}`);
@@ -645,26 +646,27 @@ export const broadcastReloadMessage = async (req, res) => {
             error: `HTTP ${response.status}`,
             message: response.data?.message || '请求失败'
           });
-          console.log(`❌ Reload request failed: ${ip} (status: ${response.status})`);
+          console.log(`❌ Reload request failed: ${ip} (status: ${response.status}), stopping subsequent requests`);
+          // 失败则停止后续请求
+          break;
         }
       } catch (error) {
         const errorMessage = error.code === 'ECONNREFUSED'
           ? '连接被拒绝'
           : error.code === 'ETIMEDOUT'
-            ? '请求超时'
-            : error.message;
+          ? '请求超时'
+          : error.message;
 
         failedNodes.push({
           ip,
           error: error.code || 'UNKNOWN',
           message: errorMessage
         });
-        console.log(`❌ Reload request error: ${ip} - ${errorMessage}`);
+        console.log(`❌ Reload request error: ${ip} - ${errorMessage}, stopping subsequent requests`);
+        // 失败则停止后续请求
+        break;
       }
-    });
-
-    // 等待所有请求完成
-    await Promise.all(requestPromises);
+    }
 
     const allSuccess = failedNodes.length === 0;
     console.log(`📤 Reload requests completed: ${successNodes.length} succeeded, ${failedNodes.length} failed`);
