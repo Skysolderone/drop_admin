@@ -10,6 +10,7 @@
 import application from '../core/appContext.js';
 import { publishToTopic } from '../services/redisTopicService.js';
 import redisClient from '../config/redis.js';
+import axios from 'axios';
 
 // Redis key prefix for node status
 const NODE_STATUS_KEY_PREFIX = 'node:status:';
@@ -567,10 +568,8 @@ export const updateConfigVersion = async (req, res) => {
 export const broadcastReloadMessage = async (req, res) => {
   try {
     const timestamp = Date.now();
-    const message = `${timestamp}reload`;
-    const topicKey = 'node:status:updates';
 
-    // 在广播前，记录所有应该收到消息的active节点
+    // 获取所有应该收到消息的active节点
     let expectedNodes = [];
     try {
       if (isRedisReady()) {
@@ -587,43 +586,104 @@ export const broadcastReloadMessage = async (req, res) => {
           expectedNodes,
           broadcastTime: new Date().toISOString()
         }));
-        console.log(`📋 Recorded expected nodes for broadcast ${timestamp}: ${expectedNodes.length} nodes - ${expectedNodes.join(', ')}`);
+        console.log(`📋 Recorded expected nodes for reload ${timestamp}: ${expectedNodes.length} nodes - ${expectedNodes.join(', ')}`);
       }
     } catch (recordError) {
       console.warn(`Warning: Failed to record expected nodes: ${recordError.message}`);
     }
 
-    const success = await publishToTopic(topicKey, message);
-
-    if (success) {
-      // 保存最新的广播时间戳到 Redis，用于验证节点上报的时间戳
-      try {
-        if (isRedisReady()) {
-          await redisClient.set(LATEST_BROADCAST_TIMESTAMP_KEY, timestamp.toString());
-          console.log(`Latest broadcast timestamp saved: ${timestamp}`);
-        }
-      } catch (redisError) {
-        console.warn(`Warning: Failed to save broadcast timestamp to Redis: ${redisError.message}`);
-      }
-
-      console.log(`📤 Broadcast reload message: ${message} to ${expectedNodes.length} expected nodes`);
+    // 如果没有节点，直接返回
+    if (expectedNodes.length === 0) {
       return application.create_response(res, {
         code: 200,
         success: true,
-        message: '广播消息发送成功',
+        message: '没有可用的节点',
         data: {
           timestamp,
-          message,
-          topicKey,
-          expectedNodesCount: expectedNodes.length,
-          expectedNodes
+          expectedNodesCount: 0,
+          successNodes: [],
+          failedNodes: []
         }
       });
-    } else {
-      return application.create_error_response(res, 500, '广播消息发送失败');
     }
+
+    // 保存最新的广播时间戳到 Redis，用于验证节点上报的时间戳
+    try {
+      if (isRedisReady()) {
+        await redisClient.set(LATEST_BROADCAST_TIMESTAMP_KEY, timestamp.toString());
+        console.log(`Latest reload timestamp saved: ${timestamp}`);
+      }
+    } catch (redisError) {
+      console.warn(`Warning: Failed to save reload timestamp to Redis: ${redisError.message}`);
+    }
+
+    // 向每个节点发送 HTTP GET 请求
+    const successNodes = [];
+    const failedNodes = [];
+    const requestPromises = expectedNodes.map(async (ip) => {
+      try {
+        const url = `http://${ip}/v1/app/reload`;
+        console.log(`🔄 Sending reload request to ${url}`);
+
+        // 发送GET请求，设置5秒超时
+        const response = await axios.get(url, {
+          timeout: 5000,
+          validateStatus: (status) => status >= 200 && status < 500 // 接受200-499的状态码
+        });
+
+        if (response.status >= 200 && response.status < 300) {
+          successNodes.push({
+            ip,
+            status: response.status,
+            message: '请求成功'
+          });
+          console.log(`✅ Reload request successful: ${ip} (status: ${response.status})`);
+        } else {
+          failedNodes.push({
+            ip,
+            status: response.status,
+            error: `HTTP ${response.status}`,
+            message: response.data?.message || '请求失败'
+          });
+          console.log(`❌ Reload request failed: ${ip} (status: ${response.status})`);
+        }
+      } catch (error) {
+        const errorMessage = error.code === 'ECONNREFUSED'
+          ? '连接被拒绝'
+          : error.code === 'ETIMEDOUT'
+          ? '请求超时'
+          : error.message;
+
+        failedNodes.push({
+          ip,
+          error: error.code || 'UNKNOWN',
+          message: errorMessage
+        });
+        console.log(`❌ Reload request error: ${ip} - ${errorMessage}`);
+      }
+    });
+
+    // 等待所有请求完成
+    await Promise.all(requestPromises);
+
+    const allSuccess = failedNodes.length === 0;
+    console.log(`📤 Reload requests completed: ${successNodes.length} succeeded, ${failedNodes.length} failed`);
+
+    return application.create_response(res, {
+      code: 200,
+      success: allSuccess,
+      message: allSuccess ? 'Reload请求全部发送成功' : `部分节点Reload失败 (${successNodes.length}/${expectedNodes.length})`,
+      data: {
+        timestamp,
+        expectedNodesCount: expectedNodes.length,
+        successCount: successNodes.length,
+        failedCount: failedNodes.length,
+        successNodes,
+        failedNodes
+      }
+    });
   } catch (error) {
     console.error('Broadcast reload message error:', error);
-    return application.create_error_response(res, 500, '广播消息发送失败');
+    return application.create_error_response(res, 500, `Reload请求发送失败: ${error.message}`);
   }
 };
